@@ -785,34 +785,47 @@ export default function MovieDetail() {
               </AnimatePresence>
 
               {iframeReady && (
-                <iframe
-                  key={`${sourceIndex}-${selectedSeason}-${selectedEpisode}`}
-                  src={sources[sourceIndex]}
-                  className="w-full h-full"
-                  allowFullScreen
-                  allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
-                  // ✅ KEY FIX: allow-popups lets player load
-                  // NOT including allow-top-navigation = no page redirects!
-                  sandbox="allow-scripts allow-same-origin allow-forms allow-fullscreen allow-popups allow-popups-to-escape-sandbox allow-presentation allow-pointer-lock"
-                  title={title}
-                  style={{ border: 'none' }}
-                />
-              )}
+  <iframe
+    key={`${sourceIndex}-${selectedSeason}-${selectedEpisode}`}
+    src={sources[sourceIndex]}
+    className="w-full h-full"
+    allowFullScreen
+    allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
+    // Server 1 (ezvidapi) claims to be sandbox-friendly/ad-free —
+    // so we block popups entirely there. Fallback servers (2-4)
+    // sometimes NEED popups to even initialize, so we only allow
+    // it as a last resort on those, with a visible warning below.
+    sandbox={
+      sourceIndex === 0
+        ? 'allow-scripts allow-same-origin allow-forms allow-fullscreen allow-presentation allow-pointer-lock'
+        : 'allow-scripts allow-same-origin allow-forms allow-fullscreen allow-popups allow-popups-to-escape-sandbox allow-presentation allow-pointer-lock'
+    }
+    title={title}
+    style={{ border: 'none' }}
+  />
+)}
             </div>
 
             {/* Footer */}
-            <div className="px-4 py-2 bg-black/90 border-t border-white/10 flex items-center justify-between flex-shrink-0">
-              <button
-                onClick={handleTryNextServer}
-                className="flex items-center gap-2 text-gray-500 hover:text-primary text-xs transition-colors"
-              >
-                <FiAlertCircle />
-                Not loading? Try next server
-              </button>
-              <p className="text-primary text-xs font-bold tracking-widest">
-                MOVIE ZONE
-              </p>
-            </div>
+<div className="px-4 py-2 bg-black/90 border-t border-white/10 flex items-center justify-between flex-shrink-0 flex-wrap gap-2">
+  <button
+    onClick={handleTryNextServer}
+    className="flex items-center gap-2 text-gray-500 hover:text-primary text-xs transition-colors"
+  >
+    <FiAlertCircle />
+    Not loading? Try next server
+  </button>
+
+  {sourceIndex > 0 && (
+    <p className="text-yellow-400 text-xs flex items-center gap-1">
+      ⚠️ Backup server — may occasionally open an ad tab. Server 1 is cleanest.
+    </p>
+  )}
+
+  <p className="text-primary text-xs font-bold tracking-widest">
+    MOVIE ZONE
+  </p>
+</div>
           </motion.div>
         )}
       </AnimatePresence>

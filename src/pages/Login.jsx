@@ -25,45 +25,63 @@ export default function Login() {
       return;
     }
 
+    // Basic password length check before sending
+    if (isSignUp && form.password.length < 6) {
+      toast.error('Password must be at least 6 characters.');
+      return;
+    }
+
     try {
       setLoading(true);
+      console.log(`🔄 ${isSignUp ? 'Sign up' : 'Sign in'} attempt for:`, form.email);
 
       if (isSignUp) {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email: form.email,
           password: form.password,
           options: {
             data: {
-              full_name: form.name || 'Movie Fan',
+              full_name: form.name.trim() || 'Movie Fan',
             },
+            // If you want to skip email confirmation (disabled in Supabase dashboard by default)
+            // emailRedirectTo: window.location.origin + '/',
           },
         });
 
         if (error) throw error;
-        toast.success('🎉 Account created! Check your email to confirm.');
-        // Still navigate — they can use the app while confirming
-        navigate('/');
 
+        console.log('✅ Sign up response:', data);
+        toast.success('🎉 Account created! Please check your email to confirm.');
+        // After signup, Supabase might automatically sign in if email confirmation is off.
+        // If it's on, user is not authenticated yet. We navigate anyway.
+        navigate('/');
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
+        const { data, error } = await supabase.auth.signInWithPassword({
           email: form.email,
           password: form.password,
         });
 
         if (error) throw error;
+
+        console.log('✅ Sign in response:', data);
         toast.success('👋 Welcome back!');
         navigate('/');
       }
-
     } catch (err) {
+      console.error('❌ Auth error:', err);
+      // User-friendly error messages
       const messages = {
         'Invalid login credentials': 'Wrong email or password.',
-        'Email not confirmed': 'Please confirm your email first.',
-        'User already registered': 'Email already in use. Sign in instead.',
-        'Password should be at least 6 characters':
-          'Password must be at least 6 characters.',
+        'Email not confirmed': 'Please confirm your email address first.',
+        'User already registered': 'This email is already registered. Please sign in.',
+        'Password should be at least 6 characters': 'Password must be at least 6 characters.',
+        'Invalid email': 'Please enter a valid email address.',
+        'unexpected failure': 'Something went wrong. Please try again.',
       };
-      toast.error(messages[err.message] || err.message || 'Something went wrong.');
+      // Try to match the error message
+      let msg = err.message || 'Authentication failed.';
+      let displayMsg = messages[msg] || msg;
+      toast.error(displayMsg);
     } finally {
       setLoading(false);
     }
@@ -72,23 +90,31 @@ export default function Login() {
   const handleGoogle = async () => {
     try {
       setLoading(true);
-      const { error } = await supabase.auth.signInWithOAuth({
+      console.log('🔄 Starting Google OAuth...');
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: window.location.origin,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
         },
       });
+
       if (error) throw error;
-      // Google redirects automatically — no need to navigate
+
+      console.log('✅ Google OAuth initiated:', data);
+      // Supabase will redirect the browser automatically
     } catch (err) {
-      toast.error('Google sign-in failed. Try again.');
+      console.error('❌ Google OAuth error:', err);
+      toast.error('Google sign-in failed. Please try again.');
       setLoading(false);
     }
   };
 
   return (
     <div className="min-h-screen bg-dark flex items-center justify-center px-4 relative overflow-hidden">
-
       {/* Background glow blobs */}
       <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-gold/5 rounded-full blur-3xl pointer-events-none" />
@@ -127,7 +153,6 @@ export default function Login() {
 
         {/* Card */}
         <div className="glass rounded-3xl border border-white/10 overflow-hidden shadow-2xl shadow-primary/10">
-
           {/* Tab Toggle */}
           <div className="flex">
             {['Sign In', 'Sign Up'].map((tab, i) => (
@@ -187,7 +212,6 @@ export default function Login() {
 
             {/* Form */}
             <form onSubmit={handleEmailAuth} className="space-y-4">
-
               {/* Name (signup only) */}
               <AnimatePresence>
                 {isSignUp && (

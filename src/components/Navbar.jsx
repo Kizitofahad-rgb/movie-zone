@@ -11,7 +11,7 @@ export default function Navbar() {
   const [searchQuery, setSearchQuery] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const { user, logout } = useAuth();
+  const { user, logout, getDisplayName } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -148,13 +148,13 @@ export default function Navbar() {
                     className="flex items-center gap-2 bg-primary/20 border border-primary/40 rounded-full px-3 py-1.5"
                   >
                     <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center">
-                      <span className="text-black text-xs font-bold">
-                        {user.displayName?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase()}
-                      </span>
-                    </div>
-                    <span className="text-white text-sm hidden sm:block">
-                      {user.displayName?.split(' ')[0] || 'User'}
+                    <span className="text-black text-xs font-bold">
+                      {getDisplayName()[0]?.toUpperCase()}
                     </span>
+                  </div>
+                  <span className="text-white text-sm hidden sm:block">
+                    {getDisplayName().split(' ')[0]}
+                  </span>
                   </motion.button>
 
                   {/* User Dropdown */}

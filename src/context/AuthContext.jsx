@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { supabase } from '../services/supabase';
+import { supabase, checkSession } from '../services/supabase';
 
 const AuthContext = createContext();
 
@@ -8,29 +8,53 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Get current session on load
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    let mounted = true;
+
+    const initializeAuth = async () => {
+      try {
+        const session = await checkSession();
+        if (mounted) {
+          setUser(session?.user ?? null);
+          console.log('✅ Auth initialized, user:', session?.user?.email || 'none');
+        }
+      } catch (err) {
+        console.error('❌ Failed to get session:', err);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    initializeAuth();
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setUser(session?.user ?? null);
-        setLoading(false);
+      async (event, session) => {
+        console.log('🔄 Auth state changed:', event, session?.user?.email || 'none');
+        if (mounted) {
+          setUser(session?.user ?? null);
+          setLoading(false);
+        }
       }
     );
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const logout = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      setUser(null);
+      console.log('👋 User logged out');
+    } catch (err) {
+      console.error('❌ Logout error:', err);
+      throw err;
+    }
   };
 
-  // Helper — get display name from user metadata
   const getDisplayName = () => {
     return (
       user?.user_metadata?.full_name ||
@@ -44,10 +68,21 @@ export const AuthProvider = ({ children }) => {
     return user?.user_metadata?.avatar_url || null;
   };
 
+  const value = {
+    user,
+    loading,
+    logout,
+    getDisplayName,
+    getAvatar,
+    // Expose refresh for debugging
+    refresh: async () => {
+      const session = await checkSession();
+      setUser(session?.user ?? null);
+    },
+  };
+
   return (
-    <AuthContext.Provider
-      value={{ user, loading, logout, getDisplayName, getAvatar }}
-    >
+    <AuthContext.Provider value={value}>
       {!loading && children}
     </AuthContext.Provider>
   );
