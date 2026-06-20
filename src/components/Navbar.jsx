@@ -43,11 +43,12 @@ export default function Navbar() {
   };
 
   const navLinks = [
-    { name: 'Home', path: '/' },
-    { name: 'Movies', path: '/movies' },
-    { name: 'Series', path: '/series' },
-    { name: 'Animations', path: '/animations' },
-  ];
+  { name: 'Home', path: '/' },
+  { name: 'Movies', path: '/movies' },
+  { name: 'Series', path: '/series' },
+  { name: 'Animations', path: '/animations' },
+  { name: '🌍 African', path: '/african' },
+];
 
   return (
     <>

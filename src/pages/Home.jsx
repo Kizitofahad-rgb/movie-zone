@@ -8,6 +8,7 @@ import {
   getNowPlaying,
   getPopularSeries,
   getAnimations,
+  getAfricanMovies,
 } from '../services/tmdb';
 
 // Mood picker data 
@@ -110,6 +111,11 @@ export default function Home() {
           title="Trending This Week"
           emoji="🔥"
           fetchFn={() => getTrending('all', 'week')}
+        />
+        <MovieRow
+          title="African Spotlight"
+          emoji="🌍"
+          fetchFn={() => getAfricanMovies('ALL')}
         />
         <MovieRow
           title="Now Playing in Cinemas"

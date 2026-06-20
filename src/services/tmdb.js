@@ -84,4 +84,57 @@ export const getPersonDetails = (id) =>
 export const discoverMovies = (params) =>
   tmdb.get('/discover/movie', { params });
 
+// ══════════════════════════════════════
+// 🌍 AFRICAN CONTENT — Movie Zone's edge
+// ══════════════════════════════════════
+
+export const AFRICAN_COUNTRIES = [
+  { code: 'ALL', name: 'All Africa', flag: '🌍' },
+  { code: 'NG', name: 'Nigeria', flag: '🇳🇬' },
+  { code: 'ZA', name: 'South Africa', flag: '🇿🇦' },
+  { code: 'KE', name: 'Kenya', flag: '🇰🇪' },
+  { code: 'GH', name: 'Ghana', flag: '🇬🇭' },
+  { code: 'EG', name: 'Egypt', flag: '🇪🇬' },
+];
+
+const ALL_AFRICAN_CODES = ['NG', 'ZA', 'KE', 'GH', 'EG'];
+
+// Merge + dedupe results from multiple country calls
+const mergeAndDedupe = (responses) => {
+  const merged = responses.flatMap((r) => r.data.results || []);
+  const unique = Array.from(new Map(merged.map((m) => [m.id, m])).values());
+  unique.sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
+  return unique;
+};
+
+export const getAfricanMovies = async (country = 'ALL', page = 1) => {
+  if (country === 'ALL') {
+    const requests = ALL_AFRICAN_CODES.map((c) =>
+      tmdb.get('/discover/movie', {
+        params: { with_origin_country: c, sort_by: 'popularity.desc', page },
+      })
+    );
+    const responses = await Promise.all(requests);
+    return { data: { results: mergeAndDedupe(responses) } };
+  }
+  return tmdb.get('/discover/movie', {
+    params: { with_origin_country: country, sort_by: 'popularity.desc', page },
+  });
+};
+
+export const getAfricanSeries = async (country = 'ALL', page = 1) => {
+  if (country === 'ALL') {
+    const requests = ALL_AFRICAN_CODES.map((c) =>
+      tmdb.get('/discover/tv', {
+        params: { with_origin_country: c, sort_by: 'popularity.desc', page },
+      })
+    );
+    const responses = await Promise.all(requests);
+    return { data: { results: mergeAndDedupe(responses) } };
+  }
+  return tmdb.get('/discover/tv', {
+    params: { with_origin_country: country, sort_by: 'popularity.desc', page },
+  });
+};
+
 export default tmdb;

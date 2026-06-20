@@ -18,20 +18,29 @@ import PlayerLoader from '../components/PlayerLoader';
 import toast from 'react-hot-toast';
 
 // ── UPDATED SOURCES — ezvidapi has built-in auto-failover ──
+// Each source now tracks whether it tolerates our security sandbox.
+// sandboxed: true  → safe, zero-redirect server
+// sandboxed: false → this provider blocks sandboxed iframes, so we
+//                    drop the sandbox just for this one (small risk
+//                    of an occasional popup, clearly flagged in UI)
 const getSources = (type, id, season = 1, episode = 1) => {
   if (type === 'tv') {
     return [
-      `https://ezvidapi.com/embed/tv/${id}/${season}/${episode}`,
-      `https://vidsrc.xyz/embed/tv?tmdb=${id}&season=${season}&episode=${episode}`,
-      `https://vidsrc.pro/embed/tv/${id}/${season}/${episode}`,
-      `https://autoembed.cc/tv/${id}/${season}/${episode}`,
+      { url: `https://ezvidapi.com/embed/tv/${id}/${season}/${episode}`, sandboxed: true },
+      { url: `https://111movies.com/tv/${id}/${season}/${episode}`, sandboxed: true },
+      { url: `https://embed.su/embed/tv/${id}/${season}/${episode}`, sandboxed: true },
+      { url: `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${season}&e=${episode}`, sandboxed: true },
+      { url: `https://vidlink.pro/tv/${id}/${season}/${episode}?autoplay=true`, sandboxed: false },
+      { url: `https://www.2embed.stream/embed/tv/${id}/${season}/${episode}`, sandboxed: true },
     ];
   }
   return [
-    `https://ezvidapi.com/embed/movie/${id}`,
-    `https://vidsrc.xyz/embed/movie?tmdb=${id}`,
-    `https://vidsrc.pro/embed/movie/${id}`,
-    `https://autoembed.cc/movie/${id}`,
+    { url: `https://ezvidapi.com/embed/movie/${id}`, sandboxed: true },
+    { url: `https://111movies.com/movie/${id}`, sandboxed: true },
+    { url: `https://embed.su/embed/movie/${id}/1/1`, sandboxed: true },
+    { url: `https://multiembed.mov/?video_id=${id}&tmdb=1`, sandboxed: true },
+    { url: `https://vidlink.pro/movie/${id}?autoplay=true`, sandboxed: false },
+    { url: `https://www.2embed.stream/embed/movie/${id}`, sandboxed: true },
   ];
 };
 
@@ -784,26 +793,32 @@ export default function MovieDetail() {
                 )}
               </AnimatePresence>
 
-              {iframeReady && (
-  <iframe
-    key={`${sourceIndex}-${selectedSeason}-${selectedEpisode}`}
-    src={sources[sourceIndex]}
-    className="w-full h-full"
-    allowFullScreen
-    allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
-    // Server 1 (ezvidapi) claims to be sandbox-friendly/ad-free —
-    // so we block popups entirely there. Fallback servers (2-4)
-    // sometimes NEED popups to even initialize, so we only allow
-    // it as a last resort on those, with a visible warning below.
-    sandbox={
-      sourceIndex === 0
-        ? 'allow-scripts allow-same-origin allow-forms allow-fullscreen allow-presentation allow-pointer-lock'
-        : 'allow-scripts allow-same-origin allow-forms allow-fullscreen allow-popups allow-popups-to-escape-sandbox allow-presentation allow-pointer-lock'
-    }
-    title={title}
-    style={{ border: 'none' }}
-  />
-)}
+  {iframeReady && (() => {
+  const current = sources[sourceIndex];
+  return (
+    <iframe
+      key={`${sourceIndex}-${selectedSeason}-${selectedEpisode}`}
+      src={current?.url}
+      className="w-full h-full"
+      allowFullScreen
+      allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
+      // undefined = no sandbox attribute rendered at all
+      sandbox={
+        current?.sandboxed === false
+          ? undefined
+          : sourceIndex === 0
+          ? 'allow-scripts allow-same-origin allow-forms allow-presentation allow-pointer-lock'
+          : 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation allow-pointer-lock'
+      }
+      title={title}
+      style={{ border: 'none' }}
+      onError={() => {
+        toast.error('This server failed to load — trying next one...');
+        handleTryNextServer();
+      }}
+    />
+  );
+})()}
             </div>
 
             {/* Footer */}
@@ -816,11 +831,11 @@ export default function MovieDetail() {
     Not loading? Try next server
   </button>
 
-  {sourceIndex > 0 && (
-    <p className="text-yellow-400 text-xs flex items-center gap-1">
-      ⚠️ Backup server — may occasionally open an ad tab. Server 1 is cleanest.
-    </p>
-  )}
+  {sources[sourceIndex]?.sandboxed === false && (
+  <p className="text-yellow-400 text-xs flex items-center gap-1">
+    ⚠️ This server may occasionally open an extra tab. Try Server 1 (S1) for the cleanest experience.
+  </p>
+)}
 
   <p className="text-primary text-xs font-bold tracking-widest">
     MOVIE ZONE

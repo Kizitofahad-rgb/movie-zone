@@ -7,6 +7,7 @@ import Home from './pages/Home';
 import Movies from './pages/Movies';
 import Series from './pages/Series';
 import Animations from './pages/Animations';
+import African from './pages/African';
 import MovieDetail from './pages/MovieDetail';
 import Search from './pages/Search';
 import Login from './pages/Login';
@@ -32,6 +33,7 @@ function App() {
           <Route path="/movies" element={<Movies />} />
           <Route path="/series" element={<Series />} />
           <Route path="/animations" element={<Animations />} />
+          <Route path="/african" element={<African />} />
           <Route path="/movie/:id" element={<MovieDetail />} />
           <Route path="/tv/:id" element={<MovieDetail />} />
           <Route path="/search" element={<Search />} />
