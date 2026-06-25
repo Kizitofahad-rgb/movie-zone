@@ -55,6 +55,15 @@ export default function Login() {
         // After signup, Supabase might automatically sign in if email confirmation is off.
         // If it's on, user is not authenticated yet. We navigate anyway.
         navigate('/');
+
+        // ── NEW: Check if trial was used on this device ──
+        if (localStorage.getItem('mz_trial_used') === 'true') {
+          toast('Welcome back! Choose a plan to start watching 🎬', {
+            duration: 5000,
+            icon: '🎬',
+          });
+        }
+
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({
           email: form.email,

@@ -15,6 +15,9 @@ import {
 } from '../services/tmdb';
 import MovieCard from '../components/MovieCard';
 import PlayerLoader from '../components/PlayerLoader';
+import PaywallModal from '../components/PaywallModal';
+import { useAuth } from '../context/AuthContext';
+import { useSubscription } from '../context/SubscriptionContext';
 import toast from 'react-hot-toast';
 
 // ── UPDATED SOURCES — ezvidapi has built-in auto-failover ──
@@ -49,6 +52,10 @@ export default function MovieDetail() {
   const navigate = useNavigate();
   const isTV = window.location.pathname.startsWith('/tv');
 
+  // Auth & Subscription
+  const { user } = useAuth();
+  const { isActive, loading: subLoading, refresh } = useSubscription();
+
   const [details, setDetails] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -68,6 +75,10 @@ export default function MovieDetail() {
   const [inWatchlist, setInWatchlist] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [showDownload, setShowDownload] = useState(false);
+
+  // Paywall state
+  const [showPaywall, setShowPaywall] = useState(false);
+  const [paywallReason, setPaywallReason] = useState('upgrade');
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -103,7 +114,27 @@ export default function MovieDetail() {
     setSourceIndex(0);
   }, [selectedSeason, selectedEpisode, id]);
 
+  // ── NEW: handleWatch with subscription check ──
   const handleWatch = () => {
+    // 1. Check if user is logged in
+    if (!user) {
+      toast('Please sign in to start your free trial', {
+        icon: '🎬',
+        duration: 4000,
+      });
+      navigate('/login');
+      return;
+    }
+
+    // 2. Check subscription active
+    if (!isActive) {
+      // If subscription is expired or not active, show paywall
+      setPaywallReason('trial_ended');
+      setShowPaywall(true);
+      return;
+    }
+
+    // 3. All good — proceed to play
     const newSources = getSources(
       isTV ? 'tv' : 'movie',
       id,
@@ -168,7 +199,7 @@ export default function MovieDetail() {
     setIframeReady(false);
   };
 
-  if (loading) {
+  if (loading || subLoading) {
     return (
       <div className="min-h-screen bg-dark flex items-center justify-center">
         <motion.div
@@ -793,54 +824,54 @@ export default function MovieDetail() {
                 )}
               </AnimatePresence>
 
-  {iframeReady && (() => {
-  const current = sources[sourceIndex];
-  return (
-    <iframe
-      key={`${sourceIndex}-${selectedSeason}-${selectedEpisode}`}
-      src={current?.url}
-      className="w-full h-full"
-      allowFullScreen
-      allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
-      // undefined = no sandbox attribute rendered at all
-      sandbox={
-        current?.sandboxed === false
-          ? undefined
-          : sourceIndex === 0
-          ? 'allow-scripts allow-same-origin allow-forms allow-presentation allow-pointer-lock'
-          : 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation allow-pointer-lock'
-      }
-      title={title}
-      style={{ border: 'none' }}
-      onError={() => {
-        toast.error('This server failed to load — trying next one...');
-        handleTryNextServer();
-      }}
-    />
-  );
-})()}
+              {iframeReady && (() => {
+                const current = sources[sourceIndex];
+                return (
+                  <iframe
+                    key={`${sourceIndex}-${selectedSeason}-${selectedEpisode}`}
+                    src={current?.url}
+                    className="w-full h-full"
+                    allowFullScreen
+                    allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
+                    // undefined = no sandbox attribute rendered at all
+                    sandbox={
+                      current?.sandboxed === false
+                        ? undefined
+                        : sourceIndex === 0
+                        ? 'allow-scripts allow-same-origin allow-forms allow-presentation allow-pointer-lock'
+                        : 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation allow-pointer-lock'
+                    }
+                    title={title}
+                    style={{ border: 'none' }}
+                    onError={() => {
+                      toast.error('This server failed to load — trying next one...');
+                      handleTryNextServer();
+                    }}
+                  />
+                );
+              })()}
             </div>
 
             {/* Footer */}
-<div className="px-4 py-2 bg-black/90 border-t border-white/10 flex items-center justify-between flex-shrink-0 flex-wrap gap-2">
-  <button
-    onClick={handleTryNextServer}
-    className="flex items-center gap-2 text-gray-500 hover:text-primary text-xs transition-colors"
-  >
-    <FiAlertCircle />
-    Not loading? Try next server
-  </button>
+            <div className="px-4 py-2 bg-black/90 border-t border-white/10 flex items-center justify-between flex-shrink-0 flex-wrap gap-2">
+              <button
+                onClick={handleTryNextServer}
+                className="flex items-center gap-2 text-gray-500 hover:text-primary text-xs transition-colors"
+              >
+                <FiAlertCircle />
+                Not loading? Try next server
+              </button>
 
-  {sources[sourceIndex]?.sandboxed === false && (
-  <p className="text-yellow-400 text-xs flex items-center gap-1">
-    ⚠️ This server may occasionally open an extra tab. Try Server 1 (S1) for the cleanest experience.
-  </p>
-)}
+              {sources[sourceIndex]?.sandboxed === false && (
+                <p className="text-yellow-400 text-xs flex items-center gap-1">
+                  ⚠️ This server may occasionally open an extra tab. Try Server 1 (S1) for the cleanest experience.
+                </p>
+              )}
 
-  <p className="text-primary text-xs font-bold tracking-widest">
-    MOVIE ZONE
-  </p>
-</div>
+              <p className="text-primary text-xs font-bold tracking-widest">
+                MOVIE ZONE
+              </p>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -996,6 +1027,13 @@ export default function MovieDetail() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ── Paywall Modal ── */}
+      <PaywallModal
+        isOpen={showPaywall}
+        onClose={() => setShowPaywall(false)}
+        triggerReason={paywallReason}
+      />
     </div>
   );
 }
