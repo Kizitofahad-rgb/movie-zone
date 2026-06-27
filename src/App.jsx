@@ -4,6 +4,7 @@ import { AuthProvider } from './context/AuthContext';
 import { SubscriptionProvider } from './context/SubscriptionContext';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
+import Landing from './pages/Landing';
 import Home from './pages/Home';
 import Movies from './pages/Movies';
 import Series from './pages/Series';
@@ -31,7 +32,10 @@ function App() {
           />
           <Navbar />
           <Routes>
-            <Route path="/" element={<Home />} />
+            {/* Landing page at root – redirects logged-in users */}
+            <Route path="/" element={<Landing />} />
+            {/* Home page moved to /home */}
+            <Route path="/home" element={<Home />} />
             <Route path="/movies" element={<Movies />} />
             <Route path="/series" element={<Series />} />
             <Route path="/animations" element={<Animations />} />

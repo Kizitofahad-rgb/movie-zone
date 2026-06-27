@@ -23,11 +23,14 @@ export const SubscriptionProvider = ({ children }) => {
       // 1. Check localStorage for trial used flag (quick client-side block)
       const trialUsedLocal = localStorage.getItem('mz_trial_used');
 
-      // 2. Query for existing subscription
+      // 2. Query for the latest subscription for this user
+      //    Use order + limit to ensure we get at most one row.
       const { data, error } = await supabase
         .from('subscriptions')
         .select('*')
         .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
         .maybeSingle();
 
       if (error) throw error;
@@ -36,7 +39,7 @@ export const SubscriptionProvider = ({ children }) => {
 
       // 3. If subscription exists, just validate/update expiry and return
       if (sub) {
-        console.log('📦 Existing subscription:', sub);
+        console.log('📦 Existing subscription (latest):', sub);
         // Check if expired and update status
         const now = new Date();
         const expiresAt = new Date(sub.expires_at);

@@ -43,12 +43,15 @@ export default function Navbar() {
   };
 
   const navLinks = [
-  { name: 'Home', path: '/' },
-  { name: 'Movies', path: '/movies' },
-  { name: 'Series', path: '/series' },
-  { name: 'Animations', path: '/animations' },
-  { name: '🌍 African', path: '/african' },
-];
+    { name: 'Home', path: '/home' },
+    { name: 'Movies', path: '/movies' },
+    { name: 'Series', path: '/series' },
+    { name: 'Animations', path: '/animations' },
+    { name: '🌍 African', path: '/african' },
+  ];
+
+  // Logo link: logged-in users go to /home, non-logged-in go to /
+  const logoPath = user ? '/home' : '/';
 
   return (
     <>
@@ -66,15 +69,17 @@ export default function Navbar() {
           <div className="flex items-center justify-between h-16 md:h-20">
 
             {/* LOGO */}
-            <Link to="/" className="flex items-center gap-2 group">
+            <Link to={logoPath} className="flex items-center gap-2 group">
               <motion.div
                 whileHover={{ rotate: 360 }}
                 transition={{ duration: 0.6 }}
               >
                 <MdLocalMovies className="text-3xl text-primary" />
               </motion.div>
-              <span className="text-2xl md:text-3xl font-bold tracking-wider"
-                style={{ fontFamily: 'Bebas Neue, sans-serif' }}>
+              <span
+                className="text-2xl md:text-3xl font-bold tracking-wider"
+                style={{ fontFamily: 'Bebas Neue, sans-serif' }}
+              >
                 <span className="text-white">MOVIE</span>
                 <span className="gradient-text"> ZONE</span>
               </span>
@@ -94,9 +99,11 @@ export default function Navbar() {
                 >
                   {link.name}
                   {/* Underline animation */}
-                  <span className={`absolute -bottom-1 left-0 h-0.5 bg-primary transition-all duration-300 ${
-                    location.pathname === link.path ? 'w-full' : 'w-0 group-hover:w-full'
-                  }`} />
+                  <span
+                    className={`absolute -bottom-1 left-0 h-0.5 bg-primary transition-all duration-300 ${
+                      location.pathname === link.path ? 'w-full' : 'w-0 group-hover:w-full'
+                    }`}
+                  />
                 </Link>
               ))}
             </div>
@@ -149,13 +156,13 @@ export default function Navbar() {
                     className="flex items-center gap-2 bg-primary/20 border border-primary/40 rounded-full px-3 py-1.5"
                   >
                     <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center">
-                    <span className="text-black text-xs font-bold">
-                      {getDisplayName()[0]?.toUpperCase()}
+                      <span className="text-black text-xs font-bold">
+                        {getDisplayName()[0]?.toUpperCase()}
+                      </span>
+                    </div>
+                    <span className="text-white text-sm hidden sm:block">
+                      {getDisplayName().split(' ')[0]}
                     </span>
-                  </div>
-                  <span className="text-white text-sm hidden sm:block">
-                    {getDisplayName().split(' ')[0]}
-                  </span>
                   </motion.button>
 
                   {/* User Dropdown */}
@@ -167,17 +174,23 @@ export default function Navbar() {
                         exit={{ opacity: 0, y: 10, scale: 0.95 }}
                         className="absolute right-0 top-12 w-48 glass rounded-xl overflow-hidden border border-white/10 shadow-xl"
                       >
-                        <Link to="/profile"
-                          className="flex items-center gap-3 px-4 py-3 text-gray-300 hover:text-white hover:bg-white/10 transition-colors">
+                        <Link
+                          to="/profile"
+                          className="flex items-center gap-3 px-4 py-3 text-gray-300 hover:text-white hover:bg-white/10 transition-colors"
+                        >
                           <FiUser /> My Profile
                         </Link>
-                        <Link to="/profile?tab=watchlist"
-                          className="flex items-center gap-3 px-4 py-3 text-gray-300 hover:text-white hover:bg-white/10 transition-colors">
+                        <Link
+                          to="/profile?tab=watchlist"
+                          className="flex items-center gap-3 px-4 py-3 text-gray-300 hover:text-white hover:bg-white/10 transition-colors"
+                        >
                           <FiHeart /> Watchlist
                         </Link>
                         <hr className="border-white/10" />
-                        <button onClick={handleLogout}
-                          className="w-full flex items-center gap-3 px-4 py-3 text-red-400 hover:text-red-300 hover:bg-white/10 transition-colors">
+                        <button
+                          onClick={handleLogout}
+                          className="w-full flex items-center gap-3 px-4 py-3 text-red-400 hover:text-red-300 hover:bg-white/10 transition-colors"
+                        >
                           <FiLogOut /> Sign Out
                         </button>
                       </motion.div>
@@ -186,8 +199,10 @@ export default function Navbar() {
                 </div>
               ) : (
                 <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                  <Link to="/login"
-                    className="bg-primary text-black font-semibold text-sm px-5 py-2 rounded-full hover:bg-primary/80 transition-colors">
+                  <Link
+                    to="/login"
+                    className="bg-primary text-black font-semibold text-sm px-5 py-2 rounded-full hover:bg-primary/80 transition-colors"
+                  >
                     Sign In
                   </Link>
                 </motion.div>
