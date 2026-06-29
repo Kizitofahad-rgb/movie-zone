@@ -1,8 +1,9 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { FiPlay, FiPlus, FiStar } from 'react-icons/fi';
+import { FiPlay, FiPlus, FiCheck } from 'react-icons/fi';
 import { AiFillStar } from 'react-icons/ai';
+import { useWatchlist } from '../hooks/useWatchlist';
 
 const IMAGE_BASE = 'https://image.tmdb.org/t/p/w500';
 
@@ -11,6 +12,10 @@ export default function MovieCard({ movie, index = 0 }) {
   const [rotation, setRotation] = useState({ x: 0, y: 0 });
   const cardRef = useRef(null);
   const navigate = useNavigate();
+
+  // ── Watchlist hook ──
+  const { isInWatchlist, addToWatchlist, removeFromWatchlist } = useWatchlist();
+  const inWatchlist = isInWatchlist(movie.id);
 
   const title = movie.title || movie.name;
   const year = (movie.release_date || movie.first_air_date || '').split('-')[0];
@@ -42,12 +47,46 @@ export default function MovieCard({ movie, index = 0 }) {
     navigate(`/${type === 'tv' ? 'tv' : 'movie'}/${movie.id}`);
   };
 
+  // ── Watchlist toggle ──
+  const handleWatchlistToggle = async (e) => {
+    e.stopPropagation();
+    console.log('🔄 Watchlist button clicked for movie:', movie.id, title); // 👈 Debug log
+    if (inWatchlist) {
+      await removeFromWatchlist(movie.id);
+    } else {
+      await addToWatchlist(movie);
+    }
+  };
+
+  // ── Cinematic entrance animation ──
+  const cardVariants = {
+    hidden: {
+      opacity: 0,
+      y: 40,
+      rotateX: 5,
+      rotateY: -10,
+      scale: 0.92,
+    },
+    visible: {
+      opacity: 1,
+      y: 0,
+      rotateX: 0,
+      rotateY: 0,
+      scale: 1,
+      transition: {
+        duration: 0.6,
+        delay: index * 0.05,
+        ease: [0.25, 0.1, 0.25, 1],
+      },
+    },
+  };
+
   return (
     <motion.div
       ref={cardRef}
-      initial={{ opacity: 0, y: 40 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay: index * 0.05 }}
+      variants={cardVariants}
+      initial="hidden"
+      animate="visible"
       onMouseMove={handleMouseMove}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={handleMouseLeave}
@@ -109,18 +148,23 @@ export default function MovieCard({ movie, index = 0 }) {
           </div>
         </motion.div>
 
-        {/* Add to Watchlist */}
+        {/* Add to Watchlist Button */}
         <motion.button
           initial={false}
           animate={{ opacity: hovered ? 1 : 0, x: hovered ? 0 : 20 }}
           transition={{ duration: 0.2 }}
-          className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white hover:bg-primary hover:text-black hover:border-primary transition-colors"
-          onClick={(e) => {
-            e.stopPropagation();
-            // watchlist logic comes with firebase
-          }}
+          onClick={handleWatchlistToggle}
+          className={`absolute top-2 right-2 w-8 h-8 rounded-full backdrop-blur-sm border flex items-center justify-center transition-colors ${
+            inWatchlist
+              ? 'bg-primary border-primary text-black'
+              : 'bg-black/60 border-white/20 text-white hover:bg-primary hover:text-black hover:border-primary'
+          }`}
         >
-          <FiPlus className="text-sm" />
+          {inWatchlist ? (
+            <FiCheck className="text-sm" />
+          ) : (
+            <FiPlus className="text-sm" />
+          )}
         </motion.button>
 
         {/* Rating Badge */}

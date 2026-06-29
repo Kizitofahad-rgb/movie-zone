@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -42,11 +43,19 @@ body {
   box-shadow: -10px 10px 30px rgba(0, 212, 255, 0.3);
 }
 
-/* Shimmer loading */
+/* ── PREMIUM SHIMMER LOADING ── */
 .shimmer {
-  background: linear-gradient(90deg, #12121a 25%, #1e1e2e 50%, #12121a 75%);
-  background-size: 200% 100%;
-  animation: shimmer 2s linear infinite;
+  background: linear-gradient(
+    135deg,
+    #12121a 0%,
+    #1a1a2e 20%,
+    #00d4ff 40%,
+    black 60%,
+    #1a1a2e 80%,
+    #12121a 100%
+  );
+  background-size: 300% 300%;
+  animation: shimmer 3s ease-in-out infinite;
 }
 
 /* Neon text */
@@ -71,3 +80,41 @@ body {
   scrollbar-width: none;
 }
 .hide-scrollbar::-webkit-scrollbar { display: none; }
+
+/* ── ANIMATIONS ── */
+
+/* Enhanced shimmer with blue/gold flow */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Pulse glow for skeleton cards */
+@keyframes pulseGlow {
+  0%, 100% {
+    opacity: 0.1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+/* Animated border pulse */
+@keyframes borderPulse {
+  0%, 100% {
+    border-color: rgba(0, 212, 255, 0.1);
+  }
+  50% {
+    border-color: rgba(0, 212, 255, 0.4);
+  }
+}
+
+/* ── FLOATING COMMENTS ── */
+/* The Dancing Script font is used for the floating comments */
+.comment-script {
+  font-family: 'Dancing Script', cursive;
+}

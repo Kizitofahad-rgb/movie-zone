@@ -12,6 +12,7 @@
   "dependencies": {
     "@heroicons/react": "^2.2.0",
     "@supabase/supabase-js": "^2.106.2",
+    "aetherly-embed-guard": "^0.1.0",
     "axios": "^1.16.1",
     "framer-motion": "^12.40.0",
     "react": "^19.2.6",

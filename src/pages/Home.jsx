@@ -1,6 +1,8 @@
+import { useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import HeroSection from '../components/HeroSection';
 import MovieRow from '../components/MovieRow';
+import { useNotifications } from '../hooks/useNotifications';
 import {
   getTrending,
   getPopularMovies,
@@ -22,6 +24,17 @@ const moods = [
 ];
 
 export default function Home() {
+  const { notifyNewContent } = useNotifications();
+  const notified = useRef(false);
+
+  // Show "new content" toast once on home page load
+  useEffect(() => {
+    if (!notified.current) {
+      notifyNewContent();
+      notified.current = true;
+    }
+  }, [notifyNewContent]);
+
   return (
     <div className="min-h-screen bg-dark">
 

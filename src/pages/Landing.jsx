@@ -5,7 +5,6 @@ import { FiPlay, FiChevronRight } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
 import { getTrending, IMAGE_ORIGINAL } from '../services/tmdb';
 import { pricingPlans } from '../data/pricingPlans';
-import toast from 'react-hot-toast';
 
 export default function Landing() {
   const { user, loading: authLoading } = useAuth();
@@ -26,7 +25,9 @@ export default function Landing() {
     const fetchTrending = async () => {
       try {
         const data = await getTrending();
-        setTrending(data.slice(0, 5));
+        // TMDB response has a "results" array
+        const movies = data.results || data;
+        setTrending(Array.isArray(movies) ? movies.slice(0, 5) : []);
       } catch (error) {
         console.error('Error fetching trending:', error);
       } finally {
@@ -232,10 +233,6 @@ export default function Landing() {
             initial={{ width: '0%' }}
             animate={{ width: '100%' }}
             transition={{ duration: 5, ease: 'linear' }}
-            onAnimationComplete={() => {
-              // Reset animation for next cycle
-              // The key change triggers new animation
-            }}
             key={currentIndex}
           />
         </div>

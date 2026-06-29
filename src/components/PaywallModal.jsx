@@ -3,10 +3,15 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { FiX } from 'react-icons/fi';
 import { pricingPlans } from '../data/pricingPlans';
 import { useSubscription } from '../context/SubscriptionContext';
+import { useAuth } from '../context/AuthContext';
+import { useNotifications } from '../hooks/useNotifications'; // 👈 NEW
+import { supabase } from '../services/supabase';
 import toast from 'react-hot-toast';
 
 const PaywallModal = ({ isOpen, onClose, triggerReason }) => {
-  const { subscription } = useSubscription();
+  const { subscription, refresh } = useSubscription();
+  const { user } = useAuth();
+  const { notifyPaymentSuccess, notifyPaymentFailure } = useNotifications(); // 👈 NEW
 
   // Prevent scroll when modal is open
   useEffect(() => {
@@ -22,10 +27,53 @@ const PaywallModal = ({ isOpen, onClose, triggerReason }) => {
 
   if (!isOpen) return null;
 
-  const handleUpgrade = (planId) => {
-    // Placeholder for payment integration
-    toast.success(`Payment integration coming soon! 🚀 (Plan: ${planId})`);
-    // In the future, you'll open a payment flow here
+  // ── TEST MODE: activate subscription without real payment ──
+  const handleActivatePlan = async (planId) => {
+    if (!user) {
+      toast.error('You must be logged in to select a plan.');
+      return;
+    }
+
+    try {
+      // Find the plan details
+      const plan = pricingPlans.find(p => p.id === planId);
+      if (!plan) {
+        toast.error('Plan not found.');
+        return;
+      }
+
+      // Calculate new expiration date
+      const now = new Date();
+      const expiresAt = new Date(now);
+      expiresAt.setDate(expiresAt.getDate() + plan.duration);
+
+      // Update the subscription row
+      const { error } = await supabase
+        .from('subscriptions')
+        .update({
+          plan: planId,
+          status: 'active',
+          started_at: now.toISOString(),
+          expires_at: expiresAt.toISOString(),
+        })
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      // Refresh subscription context
+      await refresh();
+
+      // ── Show success notification ──
+      notifyPaymentSuccess(plan.name);
+
+      // Close modal
+      onClose();
+
+    } catch (err) {
+      console.error('Activation error:', err);
+      // ── Show failure notification ──
+      notifyPaymentFailure(err.message || 'Activation failed. Please try again.');
+    }
   };
 
   // Determine if free trial should be hidden
@@ -46,7 +94,7 @@ const PaywallModal = ({ isOpen, onClose, triggerReason }) => {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           className="fixed inset-0 z-50 flex items-center justify-center bg-dark/80 backdrop-blur-sm p-4"
-          onClick={onClose} // close on backdrop click
+          onClick={onClose}
         >
           <motion.div
             initial={{ scale: 0.9, y: 20, opacity: 0 }}
@@ -54,7 +102,7 @@ const PaywallModal = ({ isOpen, onClose, triggerReason }) => {
             exit={{ scale: 0.9, y: 20, opacity: 0 }}
             transition={{ type: 'spring', damping: 25 }}
             className="glass rounded-3xl border border-white/10 max-w-4xl w-full max-h-[90vh] overflow-y-auto hide-scrollbar relative shadow-2xl shadow-primary/20"
-            onClick={(e) => e.stopPropagation()} // prevent closing when clicking inside
+            onClick={(e) => e.stopPropagation()}
           >
             {/* Close button */}
             <button
@@ -78,6 +126,10 @@ const PaywallModal = ({ isOpen, onClose, triggerReason }) => {
                 {triggerReason === 'trial_ended'
                   ? 'Choose a plan that fits your needs and continue enjoying unlimited movies and series.'
                   : 'Get full access to our entire library with one of our affordable plans.'}
+              </p>
+              {/* Test mode note */}
+              <p className="text-yellow-400 text-xs mt-2 border border-yellow-400/30 bg-yellow-400/10 rounded-full px-4 py-1 inline-block">
+                ⚡ Test mode: Click a plan to activate instantly
               </p>
             </div>
 
@@ -127,7 +179,7 @@ const PaywallModal = ({ isOpen, onClose, triggerReason }) => {
                   </div>
 
                   <button
-                    onClick={() => handleUpgrade(plan.id)}
+                    onClick={() => handleActivatePlan(plan.id)}
                     className={`mt-4 w-full py-2.5 rounded-xl font-bold text-sm transition-all ${
                       plan.highlight
                         ? 'bg-primary text-black hover:shadow-lg hover:shadow-primary/40'

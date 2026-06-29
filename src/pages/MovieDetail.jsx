@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -16,36 +16,36 @@ import {
 import MovieCard from '../components/MovieCard';
 import PlayerLoader from '../components/PlayerLoader';
 import PaywallModal from '../components/PaywallModal';
+import CommentInput from '../components/CommentInput';   // 👈 NEW
+import CommentList from '../components/CommentList';     // 👈 NEW
 import { useAuth } from '../context/AuthContext';
 import { useSubscription } from '../context/SubscriptionContext';
 import toast from 'react-hot-toast';
 
-// ── UPDATED SOURCES — ezvidapi has built-in auto-failover ──
-// Each source now tracks whether it tolerates our security sandbox.
-// sandboxed: true  → safe, zero-redirect server
-// sandboxed: false → this provider blocks sandboxed iframes, so we
-//                    drop the sandbox just for this one (small risk
-//                    of an occasional popup, clearly flagged in UI)
+// ── SOURCES with sandbox preference ──
 const getSources = (type, id, season = 1, episode = 1) => {
   if (type === 'tv') {
     return [
-      { url: `https://ezvidapi.com/embed/tv/${id}/${season}/${episode}`, sandboxed: true },
-      { url: `https://111movies.com/tv/${id}/${season}/${episode}`, sandboxed: true },
-      { url: `https://embed.su/embed/tv/${id}/${season}/${episode}`, sandboxed: true },
-      { url: `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${season}&e=${episode}`, sandboxed: true },
-      { url: `https://vidlink.pro/tv/${id}/${season}/${episode}?autoplay=true`, sandboxed: false },
-      { url: `https://www.2embed.stream/embed/tv/${id}/${season}/${episode}`, sandboxed: true },
+      { url: `https://ezvidapi.com/embed/tv/${id}/${season}/${episode}` },
+      { url: `https://111movies.com/tv/${id}/${season}/${episode}` },
+      { url: `https://embed.su/embed/tv/${id}/${season}/${episode}` },
+      { url: `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${season}&e=${episode}` },
+      { url: `https://vidlink.pro/tv/${id}/${season}/${episode}?autoplay=true` },
+      { url: `https://www.2embed.stream/embed/tv/${id}/${season}/${episode}` },
     ];
   }
   return [
-    { url: `https://ezvidapi.com/embed/movie/${id}`, sandboxed: true },
-    { url: `https://111movies.com/movie/${id}`, sandboxed: true },
-    { url: `https://embed.su/embed/movie/${id}/1/1`, sandboxed: true },
-    { url: `https://multiembed.mov/?video_id=${id}&tmdb=1`, sandboxed: true },
-    { url: `https://vidlink.pro/movie/${id}?autoplay=true`, sandboxed: false },
-    { url: `https://www.2embed.stream/embed/movie/${id}`, sandboxed: true },
+    { url: `https://ezvidapi.com/embed/movie/${id}` },
+    { url: `https://111movies.com/movie/${id}` },
+    { url: `https://embed.su/embed/movie/${id}/1/1` },
+    { url: `https://multiembed.mov/?video_id=${id}&tmdb=1` },
+    { url: `https://vidlink.pro/movie/${id}?autoplay=true` },
+    { url: `https://www.2embed.stream/embed/movie/${id}` },
   ];
 };
+
+// ── Sandbox attribute without popup permissions ──
+const SANDBOX_RESTRICTIVE = 'allow-scripts allow-same-origin allow-forms allow-presentation allow-pointer-lock';
 
 export default function MovieDetail() {
   const { id } = useParams();
@@ -79,6 +79,11 @@ export default function MovieDetail() {
   // Paywall state
   const [showPaywall, setShowPaywall] = useState(false);
   const [paywallReason, setPaywallReason] = useState('upgrade');
+
+  // ── State to refresh comments after adding ──
+  const [commentRefreshKey, setCommentRefreshKey] = useState(0);
+
+  const iframeRef = useRef(null);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -114,9 +119,7 @@ export default function MovieDetail() {
     setSourceIndex(0);
   }, [selectedSeason, selectedEpisode, id]);
 
-  // ── NEW: handleWatch with subscription check ──
   const handleWatch = () => {
-    // 1. Check if user is logged in
     if (!user) {
       toast('Please sign in to start your free trial', {
         icon: '🎬',
@@ -126,15 +129,12 @@ export default function MovieDetail() {
       return;
     }
 
-    // 2. Check subscription active
     if (!isActive) {
-      // If subscription is expired or not active, show paywall
       setPaywallReason('trial_ended');
       setShowPaywall(true);
       return;
     }
 
-    // 3. All good — proceed to play
     const newSources = getSources(
       isTV ? 'tv' : 'movie',
       id,
@@ -199,6 +199,12 @@ export default function MovieDetail() {
     setIframeReady(false);
   };
 
+  const handleCommentAdded = () => {
+    // Refresh comment list by incrementing key
+    setCommentRefreshKey(prev => prev + 1);
+    toast.success('Comment added! 🎉');
+  };
+
   if (loading || subLoading) {
     return (
       <div className="min-h-screen bg-dark flex items-center justify-center">
@@ -230,6 +236,9 @@ export default function MovieDetail() {
   const similar = details.similar?.results?.slice(0, 10) || [];
   const genres = details.genres || [];
   const seasons = details.seasons?.filter((s) => s.season_number > 0) || [];
+
+  const movieType = isTV ? 'tv' : 'movie';
+  const movieId = parseInt(id);
 
   return (
     <div className="min-h-screen bg-dark">
@@ -720,6 +729,34 @@ export default function MovieDetail() {
             </div>
           </motion.div>
         )}
+
+        {/* ─── COMMENTS SECTION ─── */}
+        <motion.div
+          initial={{ opacity: 0, y: 40 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="mt-16 max-w-3xl mx-auto w-full"
+        >
+          <div className="flex items-center gap-3 mb-6">
+            <span className="text-2xl">💬</span>
+            <h2 className="text-2xl font-bold text-white">
+              Comments
+            </h2>
+            <div className="flex-1 h-px bg-gradient-to-r from-primary/50 to-transparent ml-2" />
+          </div>
+
+          <CommentInput 
+            movieId={movieId} 
+            movieType={movieType} 
+            onCommentAdded={handleCommentAdded}
+          />
+
+          <CommentList 
+            key={commentRefreshKey}
+            movieId={movieId} 
+            movieType={movieType} 
+          />
+        </motion.div>
       </div>
 
       {/* ══════════════════════════════════ */}
@@ -820,6 +857,8 @@ export default function MovieDetail() {
                         ? `${title} S${selectedSeason}E${selectedEpisode}`
                         : title
                     }
+                    movieId={movieId}       // 👈 NEW
+                    movieType={movieType}   // 👈 NEW
                   />
                 )}
               </AnimatePresence>
@@ -828,19 +867,13 @@ export default function MovieDetail() {
                 const current = sources[sourceIndex];
                 return (
                   <iframe
+                    ref={iframeRef}
                     key={`${sourceIndex}-${selectedSeason}-${selectedEpisode}`}
                     src={current?.url}
                     className="w-full h-full"
                     allowFullScreen
                     allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
-                    // undefined = no sandbox attribute rendered at all
-                    sandbox={
-                      current?.sandboxed === false
-                        ? undefined
-                        : sourceIndex === 0
-                        ? 'allow-scripts allow-same-origin allow-forms allow-presentation allow-pointer-lock'
-                        : 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation allow-pointer-lock'
-                    }
+                    sandbox={SANDBOX_RESTRICTIVE}
                     title={title}
                     style={{ border: 'none' }}
                     onError={() => {
@@ -862,12 +895,6 @@ export default function MovieDetail() {
                 Not loading? Try next server
               </button>
 
-              {sources[sourceIndex]?.sandboxed === false && (
-                <p className="text-yellow-400 text-xs flex items-center gap-1">
-                  ⚠️ This server may occasionally open an extra tab. Try Server 1 (S1) for the cleanest experience.
-                </p>
-              )}
-
               <p className="text-primary text-xs font-bold tracking-widest">
                 MOVIE ZONE
               </p>
@@ -876,9 +903,7 @@ export default function MovieDetail() {
         )}
       </AnimatePresence>
 
-      {/* ══════════════════════════════════ */}
-      {/* TRAILER MODAL                     */}
-      {/* ══════════════════════════════════ */}
+      {/* ─── TRAILER MODAL ─── */}
       <AnimatePresence>
         {showTrailer && trailer && (
           <motion.div
@@ -936,9 +961,7 @@ export default function MovieDetail() {
         )}
       </AnimatePresence>
 
-      {/* ══════════════════════════════════ */}
-      {/* DOWNLOAD MODAL                    */}
-      {/* ══════════════════════════════════ */}
+      {/* ─── DOWNLOAD MODAL ─── */}
       <AnimatePresence>
         {showDownload && (
           <motion.div

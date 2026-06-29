@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './context/AuthContext';
 import { SubscriptionProvider } from './context/SubscriptionContext';
+import { useNotifications } from './hooks/useNotifications'; // 👈 NEW
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import Landing from './pages/Landing';
@@ -15,11 +16,18 @@ import Search from './pages/Search';
 import Login from './pages/Login';
 import Profile from './pages/Profile';
 
+// ── Component to initialize notifications ──
+function NotificationInitializer() {
+  useNotifications(); // Just call the hook to trigger its effects
+  return null;
+}
+
 function App() {
   return (
     <AuthProvider>
       <SubscriptionProvider>
         <Router>
+          <NotificationInitializer /> {/* 👈 NEW */}
           <Toaster
             position="top-right"
             toastOptions={{
@@ -32,9 +40,7 @@ function App() {
           />
           <Navbar />
           <Routes>
-            {/* Landing page at root – redirects logged-in users */}
             <Route path="/" element={<Landing />} />
-            {/* Home page moved to /home */}
             <Route path="/home" element={<Home />} />
             <Route path="/movies" element={<Movies />} />
             <Route path="/series" element={<Series />} />
