@@ -24,10 +24,11 @@ export default function Landing() {
   useEffect(() => {
     const fetchTrending = async () => {
       try {
-        const data = await getTrending();
-        // TMDB response has a "results" array
-        const movies = data.results || data;
+        const response = await getTrending();
+        // 🔥 FIX: The response is an Axios object with data inside
+        const movies = response?.data?.results || [];
         setTrending(Array.isArray(movies) ? movies.slice(0, 5) : []);
+        console.log('✅ Trending movies loaded:', movies.slice(0, 5).length);
       } catch (error) {
         console.error('Error fetching trending:', error);
       } finally {
