@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://movie-zone.vercel.app/sitemap.xmls

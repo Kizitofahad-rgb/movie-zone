@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Movie Zone — Offline</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0a0a0f;
+      color: white;
+      font-family: 'Inter', sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      text-align: center;
+      padding: 2rem;
+    }
+    .logo {
+      font-size: 3rem;
+      font-weight: 900;
+      letter-spacing: 4px;
+      margin-bottom: 1rem;
+      font-family: 'Bebas Neue', sans-serif;
+    }
+    .logo span { color: #00d4ff; }
+    .icon { font-size: 4rem; margin-bottom: 1rem; }
+    h2 { font-size: 1.5rem; margin-bottom: 0.5rem; }
+    p { color: #9ca3af; font-size: 0.9rem; margin-bottom: 2rem; }
+    button {
+      background: #00d4ff;
+      color: black;
+      border: none;
+      padding: 0.75rem 2rem;
+      border-radius: 9999px;
+      font-weight: 700;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div class="logo">MOVIE<span> ZONE</span></div>
+  <div class="icon">📡</div>
+  <h2>You're Offline</h2>
+  <p>Connect to the internet to keep streaming.<br/>
+     Your watchlist and settings are saved.</p>
+  <button onclick="window.location.reload()">
+    Try Again
+  </button>
+</body>
+</html>

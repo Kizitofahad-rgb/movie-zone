@@ -1,13 +1,61 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!-- PWA Essential Tags -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>movie-zone</title>
+    <meta name="theme-color" content="#00d4ff" />
+    <meta name="description" content="Stream movies, series and African content free for 7 days. Uganda's #1 streaming platform. Watch on any device." />
+
+    <!-- Apple/iPhone PWA tags (THIS is what you were missing!) -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Movie Zone" />
+    <link rel="apple-touch-icon" href="/icons/icon-152x152.png" />
+    <link rel="apple-touch-icon" sizes="72x72" href="/icons/icon-72x72.png" />
+    <link rel="apple-touch-icon" sizes="96x96" href="/icons/icon-96x96.png" />
+    <link rel="apple-touch-icon" sizes="128x128" href="/icons/icon-128x128.png" />
+    <link rel="apple-touch-icon" sizes="144x144" href="/icons/icon-144x144.png" />
+    <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152x152.png" />
+    <link rel="apple-touch-icon" sizes="192x192" href="/icons/icon-192x192.png" />
+    <link rel="apple-touch-icon" sizes="512x512" href="/icons/icon-512x512.png" />
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="/icons/icon-192x192.png" />
+
+    <!-- SEO Tags -->
+    <meta property="og:title" content="Movie Zone — Stream Free for 7 Days" />
+    <meta property="og:description" content="Movies, Series & African Content. No credit card needed. MTN & Airtel accepted." />
+    <meta property="og:image" content="/icons/icon-512x512.png" />
+    <meta property="og:url" content="https://movie-zone.vercel.app" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+    <title>Movie Zone — Stream Movies & Series Free</title>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+
+    <!-- Register Service Worker -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker
+            .register('/sw.js')
+            .then((reg) => console.log('✅ SW registered:', reg.scope))
+            .catch((err) => console.log('❌ SW failed:', err));
+        });
+      }
+    </script>
   </body>
 </html>

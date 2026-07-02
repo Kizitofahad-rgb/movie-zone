@@ -5,8 +5,10 @@ import { AuthProvider } from './context/AuthContext';
 import { SubscriptionProvider } from './context/SubscriptionContext';
 import { useNotifications } from './hooks/useNotifications';
 import Navbar from './components/Navbar';
+import InstallPrompt from './components/InstallPrompt';
 import Footer from './components/Footer';
 import LoadingFallback from './components/LoadingFallback'; // 👈 NEW
+
 
 // ── Critical routes (load immediately) ──
 import Landing from './pages/Landing';
@@ -45,6 +47,7 @@ function App() {
             }}
           />
           <Navbar />
+          <InstallPrompt />
           <Suspense fallback={<LoadingFallback />}>
             <Routes>
               <Route path="/" element={<Landing />} />
