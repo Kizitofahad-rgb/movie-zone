@@ -1,17 +1,21 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FiX } from 'react-icons/fi';
 import { pricingPlans } from '../data/pricingPlans';
 import { useSubscription } from '../context/SubscriptionContext';
 import { useAuth } from '../context/AuthContext';
-import { useNotifications } from '../hooks/useNotifications'; // 👈 NEW
+import { useNotifications } from '../hooks/useNotifications';
 import { supabase } from '../services/supabase';
 import toast from 'react-hot-toast';
+
+// ─── Exchange rate (1 USD = 3800 UGX) ───
+const UGX_TO_USD_RATE = 3800;
 
 const PaywallModal = ({ isOpen, onClose, triggerReason }) => {
   const { subscription, refresh } = useSubscription();
   const { user } = useAuth();
-  const { notifyPaymentSuccess, notifyPaymentFailure } = useNotifications(); // 👈 NEW
+  const { notifyPaymentSuccess, notifyPaymentFailure } = useNotifications();
+  const [currency, setCurrency] = useState('UGX'); // 'UGX' or 'USD'
 
   // Prevent scroll when modal is open
   useEffect(() => {
@@ -35,19 +39,16 @@ const PaywallModal = ({ isOpen, onClose, triggerReason }) => {
     }
 
     try {
-      // Find the plan details
       const plan = pricingPlans.find(p => p.id === planId);
       if (!plan) {
         toast.error('Plan not found.');
         return;
       }
 
-      // Calculate new expiration date
       const now = new Date();
       const expiresAt = new Date(now);
       expiresAt.setDate(expiresAt.getDate() + plan.duration);
 
-      // Update the subscription row
       const { error } = await supabase
         .from('subscriptions')
         .update({
@@ -60,18 +61,11 @@ const PaywallModal = ({ isOpen, onClose, triggerReason }) => {
 
       if (error) throw error;
 
-      // Refresh subscription context
       await refresh();
-
-      // ── Show success notification ──
       notifyPaymentSuccess(plan.name);
-
-      // Close modal
       onClose();
-
     } catch (err) {
       console.error('Activation error:', err);
-      // ── Show failure notification ──
       notifyPaymentFailure(err.message || 'Activation failed. Please try again.');
     }
   };
@@ -81,7 +75,6 @@ const PaywallModal = ({ isOpen, onClose, triggerReason }) => {
                        subscription?.plan === 'expired_trial' ||
                        subscription?.status === 'expired';
 
-  // Filter out free_trial if user already used it or has an expired subscription
   const filteredPlans = isTrialUsed
     ? pricingPlans.filter(plan => plan.id !== 'free_trial')
     : pricingPlans;
@@ -127,69 +120,110 @@ const PaywallModal = ({ isOpen, onClose, triggerReason }) => {
                   ? 'Choose a plan that fits your needs and continue enjoying unlimited movies and series.'
                   : 'Get full access to our entire library with one of our affordable plans.'}
               </p>
+
+              {/* ─── Currency Toggle ─── */}
+              <div className="mt-4 flex items-center justify-center gap-2">
+                <button
+                  onClick={() => setCurrency('UGX')}
+                  className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all ${
+                    currency === 'UGX'
+                      ? 'bg-primary text-black'
+                      : 'bg-white/10 text-gray-400 hover:text-white'
+                  }`}
+                >
+                  🇺🇬 UGX
+                </button>
+                <span className="text-gray-600">|</span>
+                <button
+                  onClick={() => setCurrency('USD')}
+                  className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all ${
+                    currency === 'USD'
+                      ? 'bg-primary text-black'
+                      : 'bg-white/10 text-gray-400 hover:text-white'
+                  }`}
+                >
+                  🌍 USD
+                </button>
+              </div>
+              <p className="text-gray-500 text-xs mt-2">
+                USD payments via card • UGX via MTN/Airtel Money
+              </p>
+
               {/* Test mode note */}
-              <p className="text-yellow-400 text-xs mt-2 border border-yellow-400/30 bg-yellow-400/10 rounded-full px-4 py-1 inline-block">
+              <p className="text-yellow-400 text-xs mt-3 border border-yellow-400/30 bg-yellow-400/10 rounded-full px-4 py-1 inline-block">
                 ⚡ Test mode: Click a plan to activate instantly
               </p>
             </div>
 
             {/* Pricing grid */}
             <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 auto-rows-fr">
-              {filteredPlans.map((plan) => (
-                <motion.div
-                  key={plan.id}
-                  whileHover={{ scale: 1.02 }}
-                  transition={{ type: 'spring', stiffness: 300 }}
-                  className={`relative bg-white/5 rounded-2xl p-5 border transition-all ${
-                    plan.highlight
-                      ? 'border-primary shadow-lg shadow-primary/20'
-                      : 'border-white/10 hover:border-primary/50'
-                  } flex flex-col`}
-                >
-                  {plan.highlight && (
-                    <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-black text-xs font-black px-4 py-1 rounded-full tracking-wider">
-                      MOST POPULAR
-                    </span>
-                  )}
+              {filteredPlans.map((plan) => {
+                // Compute USD price
+                const usdPrice = plan.price / UGX_TO_USD_RATE;
+                const formattedUsd = `$${usdPrice.toFixed(2)}`;
 
-                  <div className="flex-1">
-                    <h3
-                      className="text-xl font-bold text-white"
-                      style={{ fontFamily: 'Bebas Neue, sans-serif' }}
-                    >
-                      {plan.name}
-                    </h3>
-                    <div className="mt-2">
-                      <span className="text-2xl font-black text-white">
-                        {plan.priceLabel}
+                return (
+                  <motion.div
+                    key={plan.id}
+                    whileHover={{ scale: 1.02 }}
+                    transition={{ type: 'spring', stiffness: 300 }}
+                    className={`relative bg-white/5 rounded-2xl p-5 border transition-all ${
+                      plan.highlight
+                        ? 'border-primary shadow-lg shadow-primary/20'
+                        : 'border-white/10 hover:border-primary/50'
+                    } flex flex-col`}
+                  >
+                    {plan.highlight && (
+                      <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-black text-xs font-black px-4 py-1 rounded-full tracking-wider">
+                        MOST POPULAR
                       </span>
-                      <span className="text-gray-400 text-sm ml-1">
-                        {plan.durationLabel}
-                      </span>
+                    )}
+
+                    <div className="flex-1">
+                      <h3
+                        className="text-xl font-bold text-white"
+                        style={{ fontFamily: 'Bebas Neue, sans-serif' }}
+                      >
+                        {plan.name}
+                      </h3>
+                      <div className="mt-2">
+                        <span className="text-2xl font-black text-white">
+                          {currency === 'UGX' ? plan.priceLabel : formattedUsd}
+                        </span>
+                        <span className="text-gray-400 text-sm ml-1">
+                          {plan.durationLabel}
+                        </span>
+                        {/* Show conversion note */}
+                        <div className="text-gray-500 text-xs mt-1">
+                          {currency === 'UGX'
+                            ? `≈ ${formattedUsd} USD`
+                            : `≈ UGX ${plan.price.toLocaleString()}`}
+                        </div>
+                      </div>
+
+                      <ul className="mt-4 space-y-2 text-gray-300 text-sm">
+                        {plan.features.map((feature, idx) => (
+                          <li key={idx} className="flex items-start gap-2">
+                            <span className="text-primary mt-0.5">✓</span>
+                            <span>{feature}</span>
+                          </li>
+                        ))}
+                      </ul>
                     </div>
 
-                    <ul className="mt-4 space-y-2 text-gray-300 text-sm">
-                      {plan.features.map((feature, idx) => (
-                        <li key={idx} className="flex items-start gap-2">
-                          <span className="text-primary mt-0.5">✓</span>
-                          <span>{feature}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  <button
-                    onClick={() => handleActivatePlan(plan.id)}
-                    className={`mt-4 w-full py-2.5 rounded-xl font-bold text-sm transition-all ${
-                      plan.highlight
-                        ? 'bg-primary text-black hover:shadow-lg hover:shadow-primary/40'
-                        : 'bg-white/10 text-white hover:bg-white/20'
-                    }`}
-                  >
-                    {plan.price === 0 ? 'Start Free Trial' : 'Choose Plan'}
-                  </button>
-                </motion.div>
-              ))}
+                    <button
+                      onClick={() => handleActivatePlan(plan.id)}
+                      className={`mt-4 w-full py-2.5 rounded-xl font-bold text-sm transition-all ${
+                        plan.highlight
+                          ? 'bg-primary text-black hover:shadow-lg hover:shadow-primary/40'
+                          : 'bg-white/10 text-white hover:bg-white/20'
+                      }`}
+                    >
+                      {plan.price === 0 ? 'Start Free Trial' : 'Choose Plan'}
+                    </button>
+                  </motion.div>
+                );
+              })}
             </div>
 
             <div className="text-center text-xs text-gray-500 pb-6 px-6">

@@ -6,12 +6,16 @@ import { useAuth } from '../context/AuthContext';
 import { getTrending, IMAGE_ORIGINAL } from '../services/tmdb';
 import { pricingPlans } from '../data/pricingPlans';
 
+// ─── Exchange rate (1 USD = 3800 UGX) ───
+const UGX_TO_USD_RATE = 3800;
+
 export default function Landing() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [trending, setTrending] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [currency, setCurrency] = useState('UGX'); // 👈 NEW
 
   // Redirect logged-in users to /home
   useEffect(() => {
@@ -25,7 +29,6 @@ export default function Landing() {
     const fetchTrending = async () => {
       try {
         const response = await getTrending();
-        // 🔥 FIX: The response is an Axios object with data inside
         const movies = response?.data?.results || [];
         setTrending(Array.isArray(movies) ? movies.slice(0, 5) : []);
         console.log('✅ Trending movies loaded:', movies.slice(0, 5).length);
@@ -43,7 +46,7 @@ export default function Landing() {
     if (trending.length === 0) return;
     const interval = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % trending.length);
-    }, 5000);
+    }, 6000);
     return () => clearInterval(interval);
   }, [trending]);
 
@@ -51,6 +54,12 @@ export default function Landing() {
   const backdropUrl = currentMovie?.backdrop_path
     ? `${IMAGE_ORIGINAL}${currentMovie.backdrop_path}`
     : null;
+
+  // Helper to truncate overview
+  const truncateOverview = (text, maxLength = 150) => {
+    if (!text) return '';
+    return text.length > maxLength ? text.slice(0, maxLength) + '...' : text;
+  };
 
   if (authLoading || loading) {
     return (
@@ -64,19 +73,18 @@ export default function Landing() {
     );
   }
 
-  // If user is logged in, we've already redirected. This is just a fallback.
-  if (user) return null;
+  if (user) return null; // already redirected
 
   return (
     <div className="min-h-screen bg-dark overflow-x-hidden">
-      {/* ─── SECTION 1: FULLSCREEN HERO ─── */}
+      {/* ─── SECTION 1: FULLSCREEN CINEMATIC HERO ─── */}
       <section className="relative h-screen w-full overflow-hidden">
-        {/* Backdrop with Ken Burns Zoom + Crossfade */}
+        {/* Ken Burns Zoom + Crossfade Backdrop */}
         <AnimatePresence mode="wait">
           {backdropUrl && (
             <motion.div
               key={currentIndex}
-              initial={{ scale: 1.1, opacity: 0 }}
+              initial={{ scale: 1.08, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 1.08, opacity: 0 }}
               transition={{ duration: 1.2, ease: 'easeInOut' }}
@@ -91,7 +99,7 @@ export default function Landing() {
           )}
         </AnimatePresence>
 
-        {/* Dark overlays */}
+        {/* Dark overlays for readability */}
         <div className="absolute inset-0 bg-gradient-to-r from-dark/90 via-dark/60 to-transparent" />
         <div className="absolute inset-0 bg-gradient-to-t from-dark via-dark/40 to-transparent" />
         <div className="absolute inset-0 bg-black/30" />
@@ -119,7 +127,7 @@ export default function Landing() {
           />
         ))}
 
-        {/* Content */}
+        {/* ── Content ── */}
         <div className="relative z-10 h-full flex items-center px-4 sm:px-8 lg:px-16">
           <div className="max-w-3xl">
             {/* Badge */}
@@ -127,43 +135,53 @@ export default function Landing() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
-              className="inline-flex items-center gap-2 bg-primary/20 backdrop-blur-sm border border-primary/40 rounded-full px-4 py-1.5 mb-6"
+              className="inline-flex items-center gap-2 bg-primary/20 backdrop-blur-sm border border-primary/40 rounded-full px-4 py-1.5 mb-4"
             >
               <span className="text-primary text-sm font-bold tracking-wider">
                 🇺🇬 BUILT FOR UGANDA
               </span>
             </motion.div>
 
-            {/* Headline */}
-            <motion.h1
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className="text-5xl sm:text-7xl md:text-8xl font-black leading-[1.1]"
-              style={{ fontFamily: 'Bebas Neue, sans-serif' }}
-            >
-              <span className="text-white">WATCH WITHOUT</span>
-              <br />
-              <span className="gradient-text">LIMITS</span>
-            </motion.h1>
+            {/* Movie Title (slides in from left) */}
+            <AnimatePresence mode="wait">
+              <motion.h1
+                key={currentMovie?.id || 'fallback'}
+                initial={{ x: -50, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                exit={{ x: 50, opacity: 0 }}
+                transition={{ duration: 0.6, ease: 'easeOut' }}
+                className="text-5xl sm:text-7xl md:text-8xl font-black text-white leading-[1.1] mb-2"
+                style={{
+                  fontFamily: 'Bebas Neue, sans-serif',
+                  textShadow: '0 0 40px rgba(0,0,0,0.5)',
+                }}
+              >
+                {currentMovie?.title || 'WATCH WITHOUT LIMITS'}
+              </motion.h1>
+            </AnimatePresence>
 
-            {/* Subheadline */}
-            <motion.p
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
-              className="text-gray-300 text-base sm:text-lg md:text-xl max-w-xl mt-4 leading-relaxed"
-            >
-              Movies, Series & African Content — Stream free for 7 days.
-              No credit card needed.
-            </motion.p>
+            {/* Movie Overview (slides in from left with delay) */}
+            <AnimatePresence mode="wait">
+              <motion.p
+                key={currentMovie?.id + '-overview'}
+                initial={{ x: -40, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                exit={{ x: 40, opacity: 0 }}
+                transition={{ duration: 0.6, delay: 0.1, ease: 'easeOut' }}
+                className="text-gray-300 text-base sm:text-lg md:text-xl max-w-xl mt-2 leading-relaxed line-clamp-2"
+              >
+                {currentMovie?.overview
+                  ? truncateOverview(currentMovie.overview, 150)
+                  : 'Movies, Series & African Content — Stream free for 7 days. No credit card needed.'}
+              </motion.p>
+            </AnimatePresence>
 
             {/* CTA Buttons */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5 }}
-              className="flex flex-wrap items-center gap-4 mt-8"
+              transition={{ delay: 0.3 }}
+              className="flex flex-wrap items-center gap-4 mt-6"
             >
               <Link
                 to="/login"
@@ -183,7 +201,7 @@ export default function Landing() {
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ delay: 0.6 }}
+              transition={{ delay: 0.4 }}
               className="flex flex-wrap items-center gap-4 sm:gap-6 mt-6 text-xs sm:text-sm text-gray-400"
             >
               <span className="flex items-center gap-1.5">
@@ -233,7 +251,7 @@ export default function Landing() {
             className="h-full bg-primary"
             initial={{ width: '0%' }}
             animate={{ width: '100%' }}
-            transition={{ duration: 5, ease: 'linear' }}
+            transition={{ duration: 6, ease: 'linear' }}
             key={currentIndex}
           />
         </div>
@@ -322,7 +340,7 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ─── SECTION 4: PRICING PREVIEW ─── */}
+      {/* ─── SECTION 4: PRICING PREVIEW (with Currency Toggle) ─── */}
       <section className="max-w-7xl mx-auto px-4 sm:px-8 py-16 md:py-24 bg-gradient-to-b from-dark to-primary/5">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
@@ -338,58 +356,99 @@ export default function Landing() {
             Simple, <span className="gradient-text">Affordable</span> Pricing
           </h2>
           <p className="text-gray-400 mt-2">Pay with MTN Mobile Money or Airtel Money</p>
+
+          {/* ─── Currency Toggle ─── */}
+          <div className="mt-4 flex items-center justify-center gap-2">
+            <button
+              onClick={() => setCurrency('UGX')}
+              className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all ${
+                currency === 'UGX'
+                  ? 'bg-primary text-black'
+                  : 'bg-white/10 text-gray-400 hover:text-white'
+              }`}
+            >
+              🇺🇬 UGX
+            </button>
+            <span className="text-gray-600">|</span>
+            <button
+              onClick={() => setCurrency('USD')}
+              className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all ${
+                currency === 'USD'
+                  ? 'bg-primary text-black'
+                  : 'bg-white/10 text-gray-400 hover:text-white'
+              }`}
+            >
+              🌍 USD
+            </button>
+          </div>
+          <p className="text-gray-500 text-xs mt-2">
+            USD payments via card • UGX via MTN/Airtel Money
+          </p>
         </motion.div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-fr max-w-5xl mx-auto">
-          {pricingPlans.filter(p => p.id !== 'free_trial').map((plan, i) => (
-            <motion.div
-              key={plan.id}
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.08 }}
-              viewport={{ once: true }}
-              whileHover={{ scale: 1.03 }}
-              className={`relative bg-white/5 rounded-2xl p-6 border transition-all ${
-                plan.highlight
-                  ? 'border-primary shadow-lg shadow-primary/20'
-                  : 'border-white/10 hover:border-primary/40'
-              } flex flex-col`}
-            >
-              {plan.highlight && (
-                <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-black text-xs font-black px-4 py-1 rounded-full tracking-wider">
-                  MOST POPULAR
-                </span>
-              )}
+          {pricingPlans.filter(p => p.id !== 'free_trial').map((plan, i) => {
+            const usdPrice = plan.price / UGX_TO_USD_RATE;
+            const formattedUsd = `$${usdPrice.toFixed(2)}`;
 
-              <h3 className="text-xl font-bold text-white" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>
-                {plan.name}
-              </h3>
-              <div className="mt-2">
-                <span className="text-3xl font-black text-white">{plan.priceLabel}</span>
-                <span className="text-gray-400 text-sm ml-1">{plan.durationLabel}</span>
-              </div>
-
-              <ul className="mt-4 flex-1 space-y-2 text-gray-300 text-sm">
-                {plan.features.map((feature, idx) => (
-                  <li key={idx} className="flex items-start gap-2">
-                    <span className="text-primary mt-0.5">✓</span>
-                    <span>{feature}</span>
-                  </li>
-                ))}
-              </ul>
-
-              <Link
-                to="/login"
-                className={`mt-4 w-full py-3 rounded-xl font-bold text-sm text-center transition-all ${
+            return (
+              <motion.div
+                key={plan.id}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.08 }}
+                viewport={{ once: true }}
+                whileHover={{ scale: 1.03 }}
+                className={`relative bg-white/5 rounded-2xl p-6 border transition-all ${
                   plan.highlight
-                    ? 'bg-primary text-black hover:shadow-lg hover:shadow-primary/40'
-                    : 'bg-white/10 text-white hover:bg-white/20'
-                }`}
+                    ? 'border-primary shadow-lg shadow-primary/20'
+                    : 'border-white/10 hover:border-primary/40'
+                } flex flex-col`}
               >
-                Get Started
-              </Link>
-            </motion.div>
-          ))}
+                {plan.highlight && (
+                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-black text-xs font-black px-4 py-1 rounded-full tracking-wider">
+                    MOST POPULAR
+                  </span>
+                )}
+
+                <h3 className="text-xl font-bold text-white" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>
+                  {plan.name}
+                </h3>
+                <div className="mt-2">
+                  <span className="text-3xl font-black text-white">
+                    {currency === 'UGX' ? plan.priceLabel : formattedUsd}
+                  </span>
+                  <span className="text-gray-400 text-sm ml-1">{plan.durationLabel}</span>
+                  {/* Show conversion note */}
+                  <div className="text-gray-500 text-xs mt-1">
+                    {currency === 'UGX'
+                      ? `≈ ${formattedUsd} USD`
+                      : `≈ UGX ${plan.price.toLocaleString()}`}
+                  </div>
+                </div>
+
+                <ul className="mt-4 flex-1 space-y-2 text-gray-300 text-sm">
+                  {plan.features.map((feature, idx) => (
+                    <li key={idx} className="flex items-start gap-2">
+                      <span className="text-primary mt-0.5">✓</span>
+                      <span>{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                <Link
+                  to="/login"
+                  className={`mt-4 w-full py-3 rounded-xl font-bold text-sm text-center transition-all ${
+                    plan.highlight
+                      ? 'bg-primary text-black hover:shadow-lg hover:shadow-primary/40'
+                      : 'bg-white/10 text-white hover:bg-white/20'
+                  }`}
+                >
+                  Get Started
+                </Link>
+              </motion.div>
+            );
+          })}
         </div>
       </section>
 
