@@ -1,72 +1,77 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 
 export function useInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [isIOS, setIsIOS] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
   const [canInstall, setCanInstall] = useState(false);
-  const eventFired = useRef(false);
+  const [eventFired, setEventFired] = useState(false);
 
   useEffect(() => {
-    // Check if already installed
     const standalone = window.matchMedia('(display-mode: standalone)').matches;
     setIsStandalone(standalone);
 
-    // Detect iOS
     const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
     setIsIOS(ios);
 
-    // For Android/Desktop: listen for install event
-    if (!ios && !standalone) {
-      const handler = (e) => {
-        e.preventDefault();
-        setDeferredPrompt(e);
-        setCanInstall(true);
-        eventFired.current = true;
-      };
-      window.addEventListener('beforeinstallprompt', handler);
+    console.log('🔍 useInstallPrompt: iOS?', ios, 'Standalone?', standalone);
 
-      // Also check if the event already fired (rare case)
-      return () => window.removeEventListener('beforeinstallprompt', handler);
+    if (standalone) {
+      setCanInstall(false);
+      return;
     }
 
-    // For iOS: show install option if not standalone
-    if (ios && !standalone) {
+    if (ios) {
+      // iOS always shows the install option (with instructions)
       setCanInstall(true);
+      return;
     }
+
+    // Android/Desktop: listen for beforeinstallprompt
+    const handler = (e) => {
+      e.preventDefault();
+      console.log('✅ beforeinstallprompt event fired!');
+      setDeferredPrompt(e);
+      setCanInstall(true);
+      setEventFired(true);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+
+    // If the event doesn't fire within 5 seconds, assume it's not available
+    const timeout = setTimeout(() => {
+      if (!eventFired) {
+        console.warn('⚠️ beforeinstallprompt did not fire. PWA might not be fully installed.');
+        // Fallback: still allow install via browser menu, but we can't prompt.
+        // We'll set canInstall to false to hide the button, but we can show a manual instruction.
+        // However, we want the button to appear with a fallback message.
+        // Let's keep canInstall true but promptInstall will return noPrompt.
+        setCanInstall(true);
+      }
+    }, 5000);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handler);
+      clearTimeout(timeout);
+    };
   }, []);
 
   const promptInstall = async () => {
     if (isIOS) {
-      // iOS doesn't support the install prompt
-      // We'll show a toast with instructions instead
       return { success: false, isIOS: true };
     }
-
     if (deferredPrompt) {
-      try {
-        deferredPrompt.prompt();
-        const { outcome } = await deferredPrompt.userChoice;
-        if (outcome === 'accepted') {
-          setDeferredPrompt(null);
-          setCanInstall(false);
-          return { success: true };
-        }
-        return { success: false, declined: true };
-      } catch (err) {
-        console.error('Install prompt failed:', err);
-        return { success: false, error: err };
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setDeferredPrompt(null);
+        setCanInstall(false);
+        return { success: true };
       }
+      return { success: false, declined: true };
     }
-
+    // No deferredPrompt – fallback: show instructions
     return { success: false, noPrompt: true };
   };
 
-  return {
-    canInstall,
-    isIOS,
-    isStandalone,
-    promptInstall,
-    deferredPrompt,
-  };
+  return { canInstall, isIOS, isStandalone, promptInstall };
 }
