@@ -448,13 +448,16 @@ export default function MovieDetail() {
               </p>
             </div>
           </div>
-          <motion.button
+                    <motion.a
+            href="https://studio-6076456451-c38fd.web.app/"
+            target="_blank"
+            rel="noreferrer"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             className="flex-shrink-0 px-5 py-2 bg-primary text-black font-bold rounded-full text-xs"
           >
             Explore →
-          </motion.button>
+          </motion.a>
         </motion.div>
 
         <div className="flex flex-col lg:flex-row gap-10">

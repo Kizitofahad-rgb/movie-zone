@@ -17,7 +17,7 @@ import {
 const moods = [
   { emoji: '😂', label: 'Feeling Funny', genre: 35 },
   { emoji: '😱', label: 'Thrill Me', genre: 27 },
-  { emoji: '😭', label: 'Real touching', genre: 18 },
+  { emoji: '🥹', label: 'Real touching', genre: 18 },
   { emoji: '🚀', label: 'Sci-Fi Vibes', genre: 878 },
   { emoji: '❤️', label: 'Love-life', genre: 10749 },
   { emoji: '🧙', label: 'Fantasy', genre: 14 },
