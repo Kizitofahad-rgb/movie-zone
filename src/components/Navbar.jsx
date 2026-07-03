@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiSearch, FiX, FiMenu, FiUser, FiLogOut, FiHeart } from 'react-icons/fi';
+import { FiSearch, FiX, FiMenu, FiUser, FiLogOut, FiHeart, FiDownload } from 'react-icons/fi';
 import { MdLocalMovies } from 'react-icons/md';
 import { useAuth } from '../context/AuthContext';
+import { useInstallPrompt } from '../hooks/useInstallPrompt';
+import toast from 'react-hot-toast';
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
@@ -12,6 +14,7 @@ export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const { user, logout, getDisplayName } = useAuth();
+  const { canInstall, isIOS, isStandalone, promptInstall } = useInstallPrompt();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -42,6 +45,32 @@ export default function Navbar() {
     navigate('/');
   };
 
+  const handleInstall = async () => {
+    if (isIOS) {
+      toast(
+        '📱 Tap the Share button below, then "Add to Home Screen" to install Movie Zone on your iPhone.',
+        {
+          icon: '📱',
+          duration: 6000,
+        }
+      );
+      return;
+    }
+
+    const result = await promptInstall();
+    if (result.success) {
+      toast.success('🎉 Movie Zone installed!');
+    } else if (result.declined) {
+      toast('You can install it later from the browser menu.', {
+        icon: 'ℹ️',
+      });
+    } else if (result.noPrompt) {
+      toast('The install prompt is not available right now. Try using Chrome or Edge.', {
+        icon: '⚠️',
+      });
+    }
+  };
+
   const navLinks = [
     { name: 'Home', path: '/home' },
     { name: 'Movies', path: '/movies' },
@@ -52,6 +81,9 @@ export default function Navbar() {
 
   // Logo link: logged-in users go to /home, non-logged-in go to /
   const logoPath = user ? '/home' : '/';
+
+  // Show install button if not already installed and can install
+  const showInstallButton = canInstall && !isStandalone;
 
   return (
     <>
@@ -108,7 +140,7 @@ export default function Navbar() {
               ))}
             </div>
 
-            {/* RIGHT SIDE — Search + User */}
+            {/* RIGHT SIDE — Search + Install + User */}
             <div className="flex items-center gap-3">
 
               {/* Search Icon / Input */}
@@ -145,6 +177,20 @@ export default function Navbar() {
                   </motion.button>
                 )}
               </AnimatePresence>
+
+              {/* ─── INSTALL BUTTON ─── */}
+              {showInstallButton && (
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleInstall}
+                  className="flex items-center gap-1.5 bg-primary/10 border border-primary/40 hover:bg-primary/20 text-primary text-xs font-bold px-3 py-1.5 rounded-full transition-all"
+                >
+                  <FiDownload className="text-sm" />
+                  <span className="hidden sm:inline">Install App</span>
+                  <span className="sm:hidden">Install</span>
+                </motion.button>
+              )}
 
               {/* User Section */}
               {user ? (
@@ -242,6 +288,15 @@ export default function Navbar() {
                     {link.name}
                   </Link>
                 ))}
+                {/* Install button in mobile menu */}
+                {showInstallButton && (
+                  <button
+                    onClick={handleInstall}
+                    className="flex items-center justify-center gap-2 text-primary font-bold py-2 border border-primary/30 rounded-full bg-primary/10"
+                  >
+                    <FiDownload /> Install App
+                  </button>
+                )}
               </div>
             </motion.div>
           )}

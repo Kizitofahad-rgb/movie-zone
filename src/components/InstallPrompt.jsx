@@ -2,45 +2,29 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FiDownload, FiX } from 'react-icons/fi';
 import { MdLocalMovies } from 'react-icons/md';
+import { useInstallPrompt } from '../hooks/useInstallPrompt';
 
 export default function InstallPrompt() {
-  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const { canInstall, isIOS, promptInstall } = useInstallPrompt();
   const [showPrompt, setShowPrompt] = useState(false);
-  const [isIOS, setIsIOS] = useState(false);
   const [isDismissed, setIsDismissed] = useState(false);
 
   useEffect(() => {
     // Check if already dismissed
     if (localStorage.getItem('mz_install_dismissed')) return;
 
-    // Check if already installed
-    if (window.matchMedia('(display-mode: standalone)').matches) return;
+    // Check if already installed (will be handled by hook)
+    if (!canInstall) return;
 
-    // Detect iOS
-    const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
-    setIsIOS(ios);
-
-    if (ios) {
-      // Show iOS instructions after 3 seconds
-      setTimeout(() => setShowPrompt(true), 3000);
-    } else {
-      // Android/Desktop: listen for browser install event
-      window.addEventListener('beforeinstallprompt', (e) => {
-        e.preventDefault();
-        setDeferredPrompt(e);
-        setTimeout(() => setShowPrompt(true), 3000);
-      });
-    }
-  }, []);
+    // Show prompt after 3 seconds
+    const timer = setTimeout(() => setShowPrompt(true), 3000);
+    return () => clearTimeout(timer);
+  }, [canInstall]);
 
   const handleInstall = async () => {
-    if (deferredPrompt) {
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      if (outcome === 'accepted') {
-        setShowPrompt(false);
-      }
-      setDeferredPrompt(null);
+    const result = await promptInstall();
+    if (result.success) {
+      setShowPrompt(false);
     }
   };
 
@@ -50,7 +34,7 @@ export default function InstallPrompt() {
     localStorage.setItem('mz_install_dismissed', 'true');
   };
 
-  if (!showPrompt || isDismissed) return null;
+  if (!showPrompt || isDismissed || !canInstall) return null;
 
   return (
     <AnimatePresence>
