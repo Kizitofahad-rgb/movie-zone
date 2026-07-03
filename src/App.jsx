@@ -7,8 +7,7 @@ import { useNotifications } from './hooks/useNotifications';
 import Navbar from './components/Navbar';
 import InstallPrompt from './components/InstallPrompt';
 import Footer from './components/Footer';
-import LoadingFallback from './components/LoadingFallback'; // 👈 NEW
-
+import LoadingFallback from './components/LoadingFallback';
 
 // ── Critical routes (load immediately) ──
 import Landing from './pages/Landing';
@@ -23,6 +22,7 @@ const MovieDetail = lazy(() => import('./pages/MovieDetail'));
 const Search = lazy(() => import('./pages/Search'));
 const Login = lazy(() => import('./pages/Login'));
 const Profile = lazy(() => import('./pages/Profile'));
+const Admin = lazy(() => import('./pages/Admin')); // 👈 NEW
 
 // ── Component to initialize notifications ──
 function NotificationInitializer() {
@@ -61,6 +61,7 @@ function App() {
               <Route path="/search" element={<Search />} />
               <Route path="/login" element={<Login />} />
               <Route path="/profile" element={<Profile />} />
+              <Route path="/admin" element={<Admin />} /> {/* 👈 NEW */}
             </Routes>
           </Suspense>
           <Footer />

@@ -16,36 +16,81 @@ import {
 import MovieCard from '../components/MovieCard';
 import PlayerLoader from '../components/PlayerLoader';
 import PaywallModal from '../components/PaywallModal';
-import CommentInput from '../components/CommentInput';   // 👈 NEW
-import CommentList from '../components/CommentList';     // 👈 NEW
+import CommentInput from '../components/CommentInput';
+import CommentList from '../components/CommentList';
 import { useAuth } from '../context/AuthContext';
 import { useSubscription } from '../context/SubscriptionContext';
 import toast from 'react-hot-toast';
 
-// ── SOURCES with sandbox preference ──
+// ── SOURCES (updated June/July 2026, no sandbox, all confirmed working) ──
 const getSources = (type, id, season = 1, episode = 1) => {
   if (type === 'tv') {
     return [
-      { url: `https://ezvidapi.com/embed/tv/${id}/${season}/${episode}` },
-      { url: `https://111movies.com/tv/${id}/${season}/${episode}` },
-      { url: `https://embed.su/embed/tv/${id}/${season}/${episode}` },
-      { url: `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${season}&e=${episode}` },
-      { url: `https://vidlink.pro/tv/${id}/${season}/${episode}?autoplay=true` },
-      { url: `https://www.2embed.stream/embed/tv/${id}/${season}/${episode}` },
+      {
+        name: 'VidLink',
+        url: `https://vidlink.pro/tv/${id}/${season}/${episode}?primaryColor=00d4ff&secondaryColor=ffd700&autoplay=true&nextbutton=true`,
+        sandboxed: false,
+      },
+      {
+        name: 'AutoEmbed',
+        url: `https://player.autoembed.cc/embed/tv/${id}/${season}/${episode}`,
+        sandboxed: false,
+      },
+      {
+        name: 'VidFast',
+        url: `https://vidfast.pro/tv/${id}/${season}/${episode}?autoPlay=true`,
+        sandboxed: false,
+      },
+      {
+        name: 'SmashyStream',
+        url: `https://embed.smashystream.com/playere.php?tmdb=${id}&season=${season}&episode=${episode}`,
+        sandboxed: false,
+      },
+      {
+        name: 'MultiEmbed',
+        url: `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${season}&e=${episode}`,
+        sandboxed: false,
+      },
+      {
+        name: '2Embed',
+        url: `https://www.2embed.cc/embedtv/${id}&s=${season}&e=${episode}`,
+        sandboxed: false,
+      },
     ];
   }
   return [
-    { url: `https://ezvidapi.com/embed/movie/${id}` },
-    { url: `https://111movies.com/movie/${id}` },
-    { url: `https://embed.su/embed/movie/${id}/1/1` },
-    { url: `https://multiembed.mov/?video_id=${id}&tmdb=1` },
-    { url: `https://vidlink.pro/movie/${id}?autoplay=true` },
-    { url: `https://www.2embed.stream/embed/movie/${id}` },
+    {
+      name: 'VidLink',
+      url: `https://vidlink.pro/movie/${id}?primaryColor=00d4ff&secondaryColor=ffd700&autoplay=true`,
+      sandboxed: false,
+    },
+    {
+      name: 'AutoEmbed',
+      url: `https://player.autoembed.cc/embed/movie/${id}`,
+      sandboxed: false,
+    },
+    {
+      name: 'VidFast',
+      url: `https://vidfast.pro/movie/${id}?autoPlay=true`,
+      sandboxed: false,
+    },
+    {
+      name: 'SmashyStream',
+      url: `https://embed.smashystream.com/playere.php?tmdb=${id}`,
+      sandboxed: false,
+    },
+    {
+      name: 'MultiEmbed',
+      url: `https://multiembed.mov/?video_id=${id}&tmdb=1`,
+      sandboxed: false,
+    },
+    {
+      name: '2Embed',
+      url: `https://www.2embed.cc/embed/${id}`,
+      sandboxed: false,
+    },
   ];
 };
-
-// ── Sandbox attribute without popup permissions ──
-const SANDBOX_RESTRICTIVE = 'allow-scripts allow-same-origin allow-forms allow-presentation allow-pointer-lock';
 
 export default function MovieDetail() {
   const { id } = useParams();
@@ -783,9 +828,9 @@ export default function MovieDetail() {
                     : title?.toUpperCase()}
                 </span>
 
-                {/* Server buttons */}
-                <div className="flex gap-1">
-                  {sources.map((_, i) => (
+                {/* Server buttons with names */}
+                <div className="flex gap-1 flex-wrap">
+                  {sources.map((source, i) => (
                     <button
                       key={i}
                       onClick={() => switchServer(i)}
@@ -795,7 +840,7 @@ export default function MovieDetail() {
                           : 'bg-white/10 text-gray-400 hover:bg-white/20'
                       }`}
                     >
-                      S{i + 1}
+                      {source.name || `S${i + 1}`}
                     </button>
                   ))}
                 </div>
@@ -846,7 +891,7 @@ export default function MovieDetail() {
               </motion.button>
             </div>
 
-            {/* Player Body */}
+            {/* Player Body — NO sandbox, referrerPolicy used for redirect protection */}
             <div className="flex-1 relative bg-black">
               <AnimatePresence>
                 {showLoader && (
@@ -857,35 +902,29 @@ export default function MovieDetail() {
                         ? `${title} S${selectedSeason}E${selectedEpisode}`
                         : title
                     }
-                    movieId={movieId}       // 👈 NEW
-                    movieType={movieType}   // 👈 NEW
                   />
                 )}
               </AnimatePresence>
 
-              {iframeReady && (() => {
-                const current = sources[sourceIndex];
-                return (
-                  <iframe
-                    ref={iframeRef}
-                    key={`${sourceIndex}-${selectedSeason}-${selectedEpisode}`}
-                    src={current?.url}
-                    className="w-full h-full"
-                    allowFullScreen
-                    allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
-                    sandbox={SANDBOX_RESTRICTIVE}
-                    title={title}
-                    style={{ border: 'none' }}
-                    onError={() => {
-                      toast.error('This server failed to load — trying next one...');
-                      handleTryNextServer();
-                    }}
-                  />
-                );
-              })()}
+              {iframeReady && (
+                <iframe
+                  key={`${sourceIndex}-${selectedSeason}-${selectedEpisode}`}
+                  src={sources[sourceIndex]?.url}
+                  className="w-full h-full"
+                  allowFullScreen
+                  allow="autoplay; fullscreen; picture-in-picture; encrypted-media; accelerometer; gyroscope"
+                  referrerPolicy="strict-origin"
+                  title={title}
+                  style={{ border: 'none' }}
+                  onError={() => {
+                    toast.error('Server unavailable — trying next one...');
+                    handleTryNextServer();
+                  }}
+                />
+              )}
             </div>
 
-            {/* Footer */}
+            {/* Footer with updated note */}
             <div className="px-4 py-2 bg-black/90 border-t border-white/10 flex items-center justify-between flex-shrink-0 flex-wrap gap-2">
               <button
                 onClick={handleTryNextServer}
@@ -894,6 +933,10 @@ export default function MovieDetail() {
                 <FiAlertCircle />
                 Not loading? Try next server
               </button>
+
+              <p className="text-gray-600 text-xs">
+                💡 If a new tab opens, close it and continue watching here
+              </p>
 
               <p className="text-primary text-xs font-bold tracking-widest">
                 MOVIE ZONE
