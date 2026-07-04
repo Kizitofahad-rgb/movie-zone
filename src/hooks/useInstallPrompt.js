@@ -5,7 +5,6 @@ export function useInstallPrompt() {
   const [isIOS, setIsIOS] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
   const [canInstall, setCanInstall] = useState(false);
-  const [eventFired, setEventFired] = useState(false);
 
   useEffect(() => {
     const standalone = window.matchMedia('(display-mode: standalone)').matches;
@@ -22,7 +21,7 @@ export function useInstallPrompt() {
     }
 
     if (ios) {
-      // iOS always shows the install option (with instructions)
+      // iOS can install via manual steps
       setCanInstall(true);
       return;
     }
@@ -33,18 +32,14 @@ export function useInstallPrompt() {
       console.log('✅ beforeinstallprompt event fired!');
       setDeferredPrompt(e);
       setCanInstall(true);
-      setEventFired(true);
     };
     window.addEventListener('beforeinstallprompt', handler);
 
-    // If the event doesn't fire within 5 seconds, assume it's not available
+    // If the event doesn't fire within 5 seconds, still show the button (manual install)
     const timeout = setTimeout(() => {
-      if (!eventFired) {
+      if (!deferredPrompt) {
         console.warn('⚠️ beforeinstallprompt did not fire. PWA might not be fully installed.');
-        // Fallback: still allow install via browser menu, but we can't prompt.
-        // We'll set canInstall to false to hide the button, but we can show a manual instruction.
-        // However, we want the button to appear with a fallback message.
-        // Let's keep canInstall true but promptInstall will return noPrompt.
+        // We still set canInstall to true, but promptInstall will give manual instructions.
         setCanInstall(true);
       }
     }, 5000);
@@ -69,8 +64,8 @@ export function useInstallPrompt() {
       }
       return { success: false, declined: true };
     }
-    // No deferredPrompt – fallback: show instructions
-    return { success: false, noPrompt: true };
+    // No deferredPrompt – provide manual instructions
+    return { success: false, noPrompt: true, isAndroid: !isIOS };
   };
 
   return { canInstall, isIOS, isStandalone, promptInstall };

@@ -46,30 +46,39 @@ export default function Navbar() {
   };
 
   const handleInstall = async () => {
-    if (isIOS) {
-      toast(
-        '📱 Tap the Share button below, then "Add to Home Screen" to install Movie Zone on your iPhone.',
-        {
-          icon: '📱',
-          duration: 6000,
-        }
-      );
-      return;
-    }
+  if (isIOS) {
+    toast(
+      '📱 Tap the Share button below, then "Add to Home Screen" to install Movie Zone on your iPhone.',
+      {
+        icon: '📱',
+        duration: 6000,
+      }
+    );
+    return;
+  }
 
-    const result = await promptInstall();
-    if (result.success) {
-      toast.success('🎉 Movie Zone installed!');
-    } else if (result.declined) {
-      toast('You can install it later from the browser menu.', {
-        icon: 'ℹ️',
-      });
-    } else if (result.noPrompt) {
-      toast('The install prompt is not available right now. Try using Chrome or Edge.', {
-        icon: '⚠️',
-      });
-    }
-  };
+  const result = await promptInstall();
+  if (result.success) {
+    toast.success('🎉 Movie Zone installed!');
+  } else if (result.declined) {
+    toast('You can install it later from the browser menu.', {
+      icon: 'ℹ️',
+    });
+  } else if (result.noPrompt) {
+    // 🔥 Show manual install instructions for Android
+    toast(
+      '📲 Tap the three-dot menu (⋮) in Chrome, then select "Add to Home Screen" or "Install app".',
+      {
+        icon: '📲',
+        duration: 7000,
+      }
+    );
+  } else {
+    toast('The install prompt is not available right now. Try using Chrome or Edge.', {
+      icon: '⚠️',
+    });
+  }
+};
 
   const navLinks = [
     { name: 'Home', path: '/home' },
