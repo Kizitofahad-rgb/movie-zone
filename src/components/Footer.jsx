@@ -29,10 +29,10 @@ export default function Footer() {
           <div>
             <h4 className="text-white font-bold mb-4 text-sm tracking-widest uppercase">Browse</h4>
             <ul className="space-y-2">
-              {['Home', 'Movies', 'Series', 'Animations'].map((item) => (
+              {['Home', 'Movies', 'Series', 'Animations', 'African'].map((item) => (
                 <li key={item}>
                   <Link
-                    to={item === 'Home' ? '/' : `/${item.toLowerCase()}`}
+                    to={item === 'Home' ? '/home' : `/${item.toLowerCase()}`}
                     className="text-gray-500 hover:text-primary text-sm transition-colors"
                   >
                     {item}
@@ -46,16 +46,21 @@ export default function Footer() {
           <div>
             <h4 className="text-white font-bold mb-4 text-sm tracking-widest uppercase">Account</h4>
             <ul className="space-y-2">
-              {['Sign In', 'My Profile', 'Watchlist'].map((item) => (
-                <li key={item}>
-                  <Link
-                    to="/login"
-                    className="text-gray-500 hover:text-primary text-sm transition-colors"
-                  >
-                    {item}
-                  </Link>
-                </li>
-              ))}
+              <li>
+                <Link to="/login" className="text-gray-500 hover:text-primary text-sm transition-colors">
+                  Sign In
+                </Link>
+              </li>
+              <li>
+                <Link to="/profile" className="text-gray-500 hover:text-primary text-sm transition-colors">
+                  My Profile
+                </Link>
+              </li>
+              <li>
+                <Link to="/profile?tab=watchlist" className="text-gray-500 hover:text-primary text-sm transition-colors">
+                  Watchlist
+                </Link>
+              </li>
             </ul>
           </div>
 
@@ -63,13 +68,21 @@ export default function Footer() {
           <div>
             <h4 className="text-white font-bold mb-4 text-sm tracking-widest uppercase">Legal</h4>
             <ul className="space-y-2">
-              {['Privacy Policy', 'Terms of Use', 'DMCA'].map((item) => (
-                <li key={item}>
-                  <span className="text-gray-500 text-sm cursor-pointer hover:text-primary transition-colors">
-                    {item}
-                  </span>
-                </li>
-              ))}
+              <li>
+                <Link to="/privacy" className="text-gray-500 hover:text-primary text-sm transition-colors">
+                  Privacy Policy
+                </Link>
+              </li>
+              <li>
+                <Link to="/terms" className="text-gray-500 hover:text-primary text-sm transition-colors">
+                  Terms of Service
+                </Link>
+              </li>
+              <li>
+                <Link to="/terms#dmca" className="text-gray-500 hover:text-primary text-sm transition-colors">
+                  DMCA / Content Removal
+                </Link>
+              </li>
             </ul>
           </div>
         </div>

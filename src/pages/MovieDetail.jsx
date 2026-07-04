@@ -20,9 +20,10 @@ import CommentInput from '../components/CommentInput';
 import CommentList from '../components/CommentList';
 import { useAuth } from '../context/AuthContext';
 import { useSubscription } from '../context/SubscriptionContext';
+import { supabase } from '../services/supabase'; // 👈 NEW
 import toast from 'react-hot-toast';
 
-// ── SOURCES (updated June/July 2026, no sandbox, all confirmed working) ──
+// ── SOURCES (unchanged) ──
 const getSources = (type, id, season = 1, episode = 1) => {
   if (type === 'tv') {
     return [
@@ -120,6 +121,10 @@ export default function MovieDetail() {
   const [inWatchlist, setInWatchlist] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [showDownload, setShowDownload] = useState(false);
+
+  // ── NEW: Schedule state ──
+  const [showSchedule, setShowSchedule] = useState(false);
+  const [scheduleDateTime, setScheduleDateTime] = useState('');
 
   // Paywall state
   const [showPaywall, setShowPaywall] = useState(false);
@@ -248,6 +253,40 @@ export default function MovieDetail() {
     // Refresh comment list by incrementing key
     setCommentRefreshKey(prev => prev + 1);
     toast.success('Comment added! 🎉');
+  };
+
+  // ── NEW: Schedule handler ──
+  const handleSchedule = async () => {
+    if (!user) {
+      toast.error('Please sign in to schedule a movie.');
+      return;
+    }
+    if (!scheduleDateTime) {
+      toast.error('Please select a date and time.');
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('scheduled_watch')
+        .insert({
+          user_id: user.id,
+          movie_id: movieId,
+          movie_type: movieType,
+          title: title,
+          poster_path: details.poster_path,
+          scheduled_at: new Date(scheduleDateTime).toISOString(),
+        });
+
+      if (error) throw error;
+
+      toast.success(`📅 "${title}" scheduled for ${new Date(scheduleDateTime).toLocaleString()}`);
+      setShowSchedule(false);
+      setScheduleDateTime('');
+    } catch (err) {
+      console.error('Schedule error:', err);
+      toast.error('Failed to schedule. Please try again.');
+    }
   };
 
   if (loading || subLoading) {
@@ -403,6 +442,16 @@ export default function MovieDetail() {
                 <FiDownload /> Download
               </motion.button>
 
+              {/* ─── NEW: Schedule button ─── */}
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setShowSchedule(true)}
+                className="flex items-center gap-3 glass text-white font-semibold px-6 py-3.5 rounded-full text-sm border border-white/20 hover:border-primary/60"
+              >
+                <FiCalendar className="text-primary" /> Schedule
+              </motion.button>
+
               <motion.button
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
@@ -448,7 +497,7 @@ export default function MovieDetail() {
               </p>
             </div>
           </div>
-                    <motion.a
+          <motion.a
             href="https://studio-6076456451-c38fd.web.app/"
             target="_blank"
             rel="noreferrer"
@@ -927,7 +976,7 @@ export default function MovieDetail() {
               )}
             </div>
 
-            {/* Footer with updated note */}
+            {/* Footer */}
             <div className="px-4 py-2 bg-black/90 border-t border-white/10 flex items-center justify-between flex-shrink-0 flex-wrap gap-2">
               <button
                 onClick={handleTryNextServer}
@@ -1024,10 +1073,11 @@ export default function MovieDetail() {
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-md glass rounded-2xl border border-white/10 overflow-hidden shadow-2xl"
             >
+              {/* Header */}
               <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
                 <div className="flex items-center gap-3">
                   <FiDownload className="text-primary text-xl" />
-                  <span className="text-white font-bold">Download Options</span>
+                  <span className="text-white font-bold">Download Movie</span>
                 </div>
                 <button
                   onClick={() => setShowDownload(false)}
@@ -1037,59 +1087,131 @@ export default function MovieDetail() {
                 </button>
               </div>
 
-              <div className="px-6 py-4 border-b border-white/10 flex items-center gap-4">
-                <img
-                  src={`${IMAGE_BASE}${details.poster_path}`}
-                  alt={title}
-                  className="w-14 h-20 object-cover rounded-lg"
-                />
-                <div>
-                  <p className="text-white font-bold">{title}</p>
-                  <p className="text-gray-400 text-sm">{year}</p>
-                  <div className="flex items-center gap-1 mt-1">
-                    <AiFillStar className="text-gold text-xs" />
-                    <span className="text-gold text-xs">
-                      {details.vote_average?.toFixed(1)}
-                    </span>
+              {/* Movie Info */}
+              <div className="px-6 py-4 border-b border-white/10">
+                <div className="flex items-center gap-4">
+                  <img
+                    src={`${IMAGE_BASE}${details.poster_path}`}
+                    alt={title}
+                    className="w-14 h-20 object-cover rounded-lg"
+                  />
+                  <div>
+                    <p className="text-white font-bold">{title}</p>
+                    <p className="text-gray-400 text-sm">{year}</p>
+                    <div className="flex items-center gap-1 mt-1">
+                      <AiFillStar className="text-gold text-xs" />
+                      <span className="text-gold text-xs">
+                        {details.vote_average?.toFixed(1)}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <div className="px-6 py-4 space-y-3">
-                {[
-                  { quality: '4K Ultra HD', size: '~15 GB', icon: '📺', color: 'text-primary' },
-                  { quality: '1080p Full HD', size: '~2 GB', icon: '🎬', color: 'text-green-400' },
-                  { quality: '720p HD', size: '~1 GB', icon: '🎥', color: 'text-yellow-400' },
-                  { quality: '480p SD', size: '~500 MB', icon: '📱', color: 'text-orange-400' },
-                ].map((opt) => (
-                  <motion.a
-                    key={opt.quality}
-                    whileHover={{ scale: 1.02, x: 4 }}
-                    whileTap={{ scale: 0.98 }}
-                    href={`https://yts.mx/movies/${title
-                      ?.toLowerCase()
-                      .replace(/\s/g, '-')}-${year}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center justify-between bg-white/5 hover:bg-white/10 border border-white/10 hover:border-primary/40 rounded-xl px-4 py-3 transition-all"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="text-xl">{opt.icon}</span>
-                      <div>
-                        <p className={`font-bold text-sm ${opt.color}`}>
-                          {opt.quality}
-                        </p>
-                        <p className="text-gray-500 text-xs">{opt.size}</p>
-                      </div>
-                    </div>
-                    <FiDownload className="text-gray-400" />
-                  </motion.a>
-                ))}
+              {/* Download Button */}
+              <div className="px-6 py-6">
+                <motion.a
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  href="https://videodownloader.site/"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-full flex items-center justify-center gap-3 bg-primary text-black font-black py-4 rounded-xl text-sm tracking-widest uppercase hover:shadow-lg hover:shadow-primary/50 transition-all"
+                  onClick={() => setShowDownload(false)}
+                >
+                  <FiDownload className="text-lg" />
+                  Download Now
+                </motion.a>
+                <p className="text-gray-500 text-xs text-center mt-3">
+                  Opens in a new tab. Search for "{title}" on the site.
+                </p>
+                <p className="text-gray-600 text-xs text-center mt-1">
+                  Downloads provided by third-party service.
+                </p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ─── NEW: SCHEDULE MODAL ─── */}
+      <AnimatePresence>
+        {showSchedule && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-xl flex items-center justify-center p-4"
+            onClick={() => setShowSchedule(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0, y: 40 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md glass rounded-2xl border border-white/10 overflow-hidden shadow-2xl"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
+                <div className="flex items-center gap-3">
+                  <FiCalendar className="text-primary text-xl" />
+                  <span className="text-white font-bold">Schedule Movie</span>
+                </div>
+                <button
+                  onClick={() => setShowSchedule(false)}
+                  className="w-8 h-8 rounded-full bg-white/10 hover:bg-red-500 flex items-center justify-center text-white transition-colors"
+                >
+                  <FiX />
+                </button>
               </div>
 
-              <div className="px-6 py-3 border-t border-white/10">
-                <p className="text-gray-600 text-xs text-center">
-                  Downloads provided by third-party services.
+              {/* Movie Info */}
+              <div className="px-6 py-4 border-b border-white/10">
+                <div className="flex items-center gap-4">
+                  <img
+                    src={`${IMAGE_BASE}${details.poster_path}`}
+                    alt={title}
+                    className="w-14 h-20 object-cover rounded-lg"
+                  />
+                  <div>
+                    <p className="text-white font-bold">{title}</p>
+                    <p className="text-gray-400 text-sm">{year}</p>
+                    <div className="flex items-center gap-1 mt-1">
+                      <AiFillStar className="text-gold text-xs" />
+                      <span className="text-gold text-xs">
+                        {details.vote_average?.toFixed(1)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Date/Time Picker */}
+              <div className="px-6 py-4 space-y-4">
+                <div>
+                  <label className="block text-gray-400 text-sm mb-2">
+                    Select date and time:
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={scheduleDateTime}
+                    onChange={(e) => setScheduleDateTime(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 focus:border-primary rounded-xl px-4 py-3 text-white outline-none transition-all text-sm"
+                    min={new Date().toISOString().slice(0, 16)}
+                  />
+                </div>
+
+                <button
+                  onClick={handleSchedule}
+                  className="w-full bg-primary text-black font-bold py-3 rounded-xl text-sm tracking-wider hover:shadow-lg hover:shadow-primary/40 transition-all"
+                >
+                  📅 Save Schedule
+                </button>
+              </div>
+
+              <div className="px-6 py-3 border-t border-white/10 text-center">
+                <p className="text-gray-500 text-xs">
+                  You'll receive a reminder when it's time to watch.
                 </p>
               </div>
             </motion.div>

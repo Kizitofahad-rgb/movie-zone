@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiLogOut, FiUser, FiHeart, FiSettings, FiEdit2 } from 'react-icons/fi';
+import { FiLogOut, FiUser, FiHeart, FiSettings, FiEdit2, FiCalendar } from 'react-icons/fi'; // 👈 Added FiCalendar
 import { useAuth } from '../context/AuthContext';
 import { useSubscription } from '../context/SubscriptionContext';
 import { useWatchlist } from '../hooks/useWatchlist';
@@ -10,12 +10,11 @@ import MovieCard from '../components/MovieCard';
 import { supabase } from '../services/supabase';
 import toast from 'react-hot-toast';
 
-// ── Watchlist Content (separate component to trigger refresh on mount) ──
+// ── Watchlist Content ──
 function WatchlistContent() {
   const { watchlist, loading, removeFromWatchlist, refresh } = useWatchlist();
   const navigate = useNavigate();
 
-  // Force refresh when this component mounts (i.e., when tab is clicked)
   useEffect(() => {
     refresh();
   }, []);
@@ -107,6 +106,147 @@ function WatchlistContent() {
   );
 }
 
+// ── NEW: Scheduled Content ──
+function ScheduledContent() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [scheduled, setScheduled] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchScheduled = async () => {
+    if (!user) return;
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('scheduled_watch')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('scheduled_at', { ascending: true });
+
+      if (error) throw error;
+      setScheduled(data || []);
+    } catch (err) {
+      console.error('Error fetching scheduled:', err);
+      toast.error('Failed to load scheduled movies.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchScheduled();
+  }, [user]);
+
+  const handleRemove = async (id) => {
+    if (!confirm('Remove this scheduled movie?')) return;
+    try {
+      const { error } = await supabase
+        .from('scheduled_watch')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      toast.success('Removed from schedule.');
+      await fetchScheduled();
+    } catch (err) {
+      console.error('Error removing scheduled:', err);
+      toast.error('Failed to remove.');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="rounded-xl overflow-hidden">
+            <div className="aspect-[2/3] shimmer rounded-t-xl" />
+            <div className="bg-darkCard p-3 space-y-2">
+              <div className="h-3 shimmer rounded w-3/4" />
+              <div className="h-2 shimmer rounded w-1/2" />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (scheduled.length === 0) {
+    return (
+      <div className="text-center py-20 glass rounded-2xl border border-white/10">
+        <p className="text-5xl mb-4">📅</p>
+        <p className="text-white font-bold text-lg mb-2">
+          No Scheduled Movies
+        </p>
+        <p className="text-gray-400 text-sm mb-6">
+          Schedule a movie to watch later and get a reminder.
+        </p>
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => navigate('/movies')}
+          className="px-8 py-3 bg-primary text-black font-bold rounded-full text-sm"
+        >
+          Browse Movies
+        </motion.button>
+      </div>
+    );
+  }
+
+  // Format date for display
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-gray-400 text-sm">
+          {scheduled.length} {scheduled.length === 1 ? 'movie' : 'movies'} scheduled
+        </p>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+        {scheduled.map((item, i) => (
+          <div key={item.id || i} className="relative group">
+            <MovieCard 
+              movie={{
+                id: item.movie_id,
+                title: item.title,
+                poster_path: item.poster_path,
+                vote_average: 0,
+                release_date: '',
+                media_type: item.movie_type,
+              }}
+              index={i}
+            />
+            {/* Scheduled time badge */}
+            <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black to-transparent">
+              <p className="text-[10px] text-primary font-bold text-center">
+                {formatDate(item.scheduled_at)}
+              </p>
+            </div>
+            {/* Remove button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleRemove(item.id);
+              }}
+              className="absolute -top-2 -right-2 z-10 w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110 shadow-lg"
+            >
+              <span className="text-xs font-bold">×</span>
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function Profile() {
   const { user, logout, getDisplayName, getAvatar, refresh: refreshAuth } = useAuth();
   const { subscription, isActive, daysRemaining, refresh: refreshSubscription } = useSubscription();
@@ -135,6 +275,8 @@ export default function Profile() {
     const tabParam = params.get('tab');
     if (tabParam === 'watchlist') {
       setTab('watchlist');
+    } else if (tabParam === 'schedule') {
+      setTab('schedule');
     }
   }, []);
 
@@ -316,6 +458,7 @@ export default function Profile() {
           {[
             { id: 'account', label: 'Account', icon: <FiUser /> },
             { id: 'watchlist', label: 'Watchlist', icon: <FiHeart /> },
+            { id: 'schedule', label: 'Upcoming', icon: <FiCalendar /> }, // 👈 NEW
             { id: 'settings', label: 'Settings', icon: <FiSettings /> },
           ].map((t) => (
             <button
@@ -378,6 +521,17 @@ export default function Profile() {
             key="watchlist"
           >
             <WatchlistContent />
+          </motion.div>
+        )}
+
+        {/* ─── SCHEDULE TAB (NEW) ─── */}
+        {tab === 'schedule' && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            key="schedule"
+          >
+            <ScheduledContent />
           </motion.div>
         )}
 
