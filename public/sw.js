@@ -1,25 +1,7 @@
-const CACHE_NAME = 'movie-zone-v1';
+const CACHE_NAME = 'movie-zone-v2'; // ← Increment the version number
 
-// Files to cache for offline use
-const STATIC_ASSETS = [
-  '/',
-  '/home',
-  '/movies',
-  '/offline.html',
-];
-
-// Install: cache static assets
+// Install: delete old caches
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(STATIC_ASSETS);
-    })
-  );
-  self.skipWaiting();
-});
-
-// Activate: clean old caches
-self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
       Promise.all(
@@ -29,12 +11,16 @@ self.addEventListener('activate', (event) => {
       )
     )
   );
-  self.clients.claim();
+  self.skipWaiting();
+});
+
+// Activate: claim clients immediately
+self.addEventListener('activate', (event) => {
+  event.waitUntil(clients.claim());
 });
 
 // Fetch: serve from cache, fallback to network
 self.addEventListener('fetch', (event) => {
-  // Skip non-GET and external requests
   if (
     event.request.method !== 'GET' ||
     !event.request.url.startsWith(self.location.origin)
@@ -46,7 +32,6 @@ self.addEventListener('fetch', (event) => {
     caches.match(event.request).then((cached) => {
       if (cached) return cached;
       return fetch(event.request).then((response) => {
-        // Cache successful responses
         if (response.status === 200) {
           const copy = response.clone();
           caches.open(CACHE_NAME).then((cache) => {
@@ -55,7 +40,6 @@ self.addEventListener('fetch', (event) => {
         }
         return response;
       }).catch(() => {
-        // Offline fallback
         if (event.request.destination === 'document') {
           return caches.match('/offline.html');
         }
