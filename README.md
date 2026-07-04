@@ -1,22 +1,53 @@
-# React + Vite
+# 🎬 Movie Zone
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+[![Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-000000?logo=vercel)](https://movie-zone.vercel.app)
+[![Supabase](https://img.shields.io/badge/Powered%20by-Supabase-3ecf8e?logo=supabase)](https://supabase.com)
+[![React](https://img.shields.io/badge/Built%20with-React-61dafb?logo=react)](https://react.dev)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Currently, two official plugins are available:
+> 🇺🇬 Uganda's streaming platform — movies, series & African content. Stream free for 7 days.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+![Movie Zone Screenshot](https://movie-zone.vercel.app/icons/512x512.png)
 
-## React Compiler
+## ✨ Features
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- 🎬 **Cinematic Landing Page** – Auto‑play movie backdrops with Ken Burns effect
+- 🔐 **Authentication** – Email/Password sign‑up + sign‑in (Google OAuth optional)
+- 💳 **Subscription System** – Free trial (7 days), Daily, Weekly, Monthly, Student plans
+- 🎥 **Embedded Player** – Multiple video sources with error handling & server switching
+- 🌍 **African Content** – Curated movies from Nigeria, South Africa, Kenya, Ghana, Egypt
+- ❤️ **Watchlist** – Save movies to watch later (Supabase)
+- 💬 **Comments** – User comments per movie with moderation (Admin panel)
+- 📅 **Scheduling** – Schedule movies to watch with reminders
+- 📱 **PWA** – Installable on Android & iPhone (fullscreen app experience)
+- 🛡️ **Admin Dashboard** – Manage users, subscriptions, comments, and trial history
+- 🔍 **Search** – Debounced search with autocomplete suggestions
+- 🌙 **Dark Theme** – Premium dark UI with glass‑morphism and neon accents
 
-## Expanding the ESLint configuration
+## 🛠️ Tech Stack
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+### Frontend
 
-## iDEAES
+- **React 18 + Vite** – Fast development and builds
+- **Tailwind CSS** – Styling with dark glass design
+- **Framer Motion** – Smooth animations
+- **React Router v6** – Routing
+- **React Hot Toast** – Notifications
 
-I WANT TO MAKE THE BAKGROUND TO BE CHANGING COLORS IN A CINEMATIC FILLING KIND OF A WAY LIKE WHEN SOME ONE IN SCROLLING THROUGH THE MOVIES, SERIES AND ANIME, MAYBE EVEN ON THE HOMEPAGE TOO.
+### Backend & Database
 
-HOW DOES MOVIE BOX DO IT?
+- **Supabase** – Authentication, database, storage
+- **TMDB API** – Movie/series metadata
+- **Flutterwave** – Payment processing (coming soon)
+
+### Hosting
+
+- **Vercel** – Production deployment
+
+## 🚀 Live Demo
+
+🔗 **[movie-zone.vercel.app](https://movie-zone.vercel.app)**
+
+Test account: `demo@moviezone.ug` / `demopass123` (or sign up with your own email)
+
+## 📂 Project Structure
