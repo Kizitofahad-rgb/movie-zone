@@ -14,7 +14,7 @@ export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const { user, logout, getDisplayName } = useAuth();
-  const { canInstall, isIOS, isStandalone, promptInstall } = useInstallPrompt();
+  const { canInstall, isIOS, isSafari, isStandalone, promptInstall } = useInstallPrompt();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -46,39 +46,48 @@ export default function Navbar() {
   };
 
   const handleInstall = async () => {
-  if (isIOS) {
-    toast(
-      '📱 Tap the Share button below, then "Add to Home Screen" to install Movie Zone on your iPhone.',
-      {
-        icon: '📱',
-        duration: 6000,
+    if (isIOS) {
+      if (!isSafari) {
+        toast(
+          '⚠️ Please open Movie Zone in Safari to install on your iPhone. Tap the Share button, then "Add to Home Screen".',
+          {
+            icon: '⚠️',
+            duration: 7000,
+          }
+        );
+        return;
       }
-    );
-    return;
-  }
+      toast(
+        '📱 Tap the Share button below, then "Add to Home Screen" to install Movie Zone on your iPhone.',
+        {
+          icon: '📱',
+          duration: 6000,
+        }
+      );
+      return;
+    }
 
-  const result = await promptInstall();
-  if (result.success) {
-    toast.success('🎉 Movie Zone installed!');
-  } else if (result.declined) {
-    toast('You can install it later from the browser menu.', {
-      icon: 'ℹ️',
-    });
-  } else if (result.noPrompt) {
-    // 🔥 Show manual install instructions for Android
-    toast(
-      '📲 Tap the three-dot menu (⋮) in Chrome, then select "Add to Home Screen" or "Install app".',
-      {
-        icon: '📲',
-        duration: 7000,
-      }
-    );
-  } else {
-    toast('The install prompt is not available right now. Try using Chrome or Edge.', {
-      icon: '⚠️',
-    });
-  }
-};
+    const result = await promptInstall();
+    if (result.success) {
+      toast.success('🎉 Movie Zone installed!');
+    } else if (result.declined) {
+      toast('You can install it later from the browser menu.', {
+        icon: 'ℹ️',
+      });
+    } else if (result.noPrompt) {
+      toast(
+        '📲 Tap the three-dot menu (⋮) in Chrome, then select "Add to Home Screen" or "Install app".',
+        {
+          icon: '📲',
+          duration: 7000,
+        }
+      );
+    } else {
+      toast('The install prompt is not available right now. Try using Chrome or Edge.', {
+        icon: '⚠️',
+      });
+    }
+  };
 
   const navLinks = [
     { name: 'Home', path: '/home' },
@@ -196,7 +205,9 @@ export default function Navbar() {
                   className="flex items-center gap-1.5 bg-primary/10 border border-primary/40 hover:bg-primary/20 text-primary text-xs font-bold px-3 py-1.5 rounded-full transition-all"
                 >
                   <FiDownload className="text-sm" />
-                  <span className="hidden sm:inline">Install App</span>
+                  <span className="hidden sm:inline">
+                    {isIOS ? 'Install on iPhone' : 'Install App'}
+                  </span>
                   <span className="sm:hidden">Install</span>
                 </motion.button>
               )}
@@ -240,6 +251,12 @@ export default function Navbar() {
                           className="flex items-center gap-3 px-4 py-3 text-gray-300 hover:text-white hover:bg-white/10 transition-colors"
                         >
                           <FiHeart /> Watchlist
+                        </Link>
+                        <Link
+                          to="/profile?tab=schedule"
+                          className="flex items-center gap-3 px-4 py-3 text-gray-300 hover:text-white hover:bg-white/10 transition-colors"
+                        >
+                          <FiDownload className="text-sm" /> Upcoming
                         </Link>
                         <hr className="border-white/10" />
                         <button
@@ -303,7 +320,7 @@ export default function Navbar() {
                     onClick={handleInstall}
                     className="flex items-center justify-center gap-2 text-primary font-bold py-2 border border-primary/30 rounded-full bg-primary/10"
                   >
-                    <FiDownload /> Install App
+                    <FiDownload /> {isIOS ? 'Install on iPhone' : 'Install App'}
                   </button>
                 )}
               </div>

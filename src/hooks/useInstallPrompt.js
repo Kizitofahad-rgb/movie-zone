@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 export function useInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [isIOS, setIsIOS] = useState(false);
+  const [isSafari, setIsSafari] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
   const [canInstall, setCanInstall] = useState(false);
 
@@ -10,10 +11,15 @@ export function useInstallPrompt() {
     const standalone = window.matchMedia('(display-mode: standalone)').matches;
     setIsStandalone(standalone);
 
+    // iOS detection
     const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
     setIsIOS(ios);
 
-    console.log('🔍 useInstallPrompt: iOS?', ios, 'Standalone?', standalone);
+    // Safari detection (iOS only)
+    const safari = /safari/i.test(navigator.userAgent) && !/crios/i.test(navigator.userAgent) && !/fxios/i.test(navigator.userAgent);
+    setIsSafari(safari);
+
+    console.log('🔍 useInstallPrompt: iOS?', ios, 'Safari?', safari, 'Standalone?', standalone);
 
     if (standalone) {
       setCanInstall(false);
@@ -21,8 +27,14 @@ export function useInstallPrompt() {
     }
 
     if (ios) {
-      // iOS can install via manual steps
-      setCanInstall(true);
+      // iOS: only show install if using Safari
+      if (safari) {
+        setCanInstall(true);
+      } else {
+        // iOS but not Safari – show a warning
+        setCanInstall(false);
+        console.warn('⚠️ Please open Movie Zone in Safari to install on iPhone.');
+      }
       return;
     }
 
@@ -39,7 +51,6 @@ export function useInstallPrompt() {
     const timeout = setTimeout(() => {
       if (!deferredPrompt) {
         console.warn('⚠️ beforeinstallprompt did not fire. PWA might not be fully installed.');
-        // We still set canInstall to true, but promptInstall will give manual instructions.
         setCanInstall(true);
       }
     }, 5000);
@@ -52,7 +63,8 @@ export function useInstallPrompt() {
 
   const promptInstall = async () => {
     if (isIOS) {
-      return { success: false, isIOS: true };
+      // iOS doesn't support programmatic install – return iOS flag
+      return { success: false, isIOS: true, isSafari };
     }
     if (deferredPrompt) {
       deferredPrompt.prompt();
@@ -68,5 +80,5 @@ export function useInstallPrompt() {
     return { success: false, noPrompt: true, isAndroid: !isIOS };
   };
 
-  return { canInstall, isIOS, isStandalone, promptInstall };
+  return { canInstall, isIOS, isSafari, isStandalone, promptInstall };
 }
