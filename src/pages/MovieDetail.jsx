@@ -20,36 +20,31 @@ import CommentInput from '../components/CommentInput';
 import CommentList from '../components/CommentList';
 import { useAuth } from '../context/AuthContext';
 import { useSubscription } from '../context/SubscriptionContext';
-import { supabase } from '../services/supabase'; // 👈 NEW
+import { supabase } from '../services/supabase';
 import toast from 'react-hot-toast';
 
-// ── SOURCES (unchanged) ──
+// ── UPDATED SOURCES ──
 const getSources = (type, id, season = 1, episode = 1) => {
   if (type === 'tv') {
     return [
       {
         name: 'VidLink',
-        url: `https://vidlink.pro/tv/${id}/${season}/${episode}?primaryColor=00d4ff&secondaryColor=ffd700&autoplay=true&nextbutton=true`,
+        url: `https://vidlink.pro/tv/${id}/${season}/${episode}?primaryColor=00d4ff&secondaryColor=ffd700&iconColor=ffffff&icons=vid&player=jw&autoplay=true&nextbutton=true&title=true&poster=true`,
+        sandboxed: false,
+      },
+      {
+        name: 'VidLink 2',
+        url: `https://vidlink.pro/tv/${id}/${season}/${episode}?primaryColor=00d4ff&secondaryColor=ffd700&player=default&autoplay=true&nextbutton=true`,
+        sandboxed: false,
+      },
+      {
+        name: 'MultiEmbed',
+        url: `https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1&s=${season}&e=${episode}`,
         sandboxed: false,
       },
       {
         name: 'AutoEmbed',
         url: `https://player.autoembed.cc/embed/tv/${id}/${season}/${episode}`,
-        sandboxed: false,
-      },
-      {
-        name: 'VidFast',
-        url: `https://vidfast.pro/tv/${id}/${season}/${episode}?autoPlay=true`,
-        sandboxed: false,
-      },
-      {
-        name: 'SmashyStream',
-        url: `https://embed.smashystream.com/playere.php?tmdb=${id}&season=${season}&episode=${episode}`,
-        sandboxed: false,
-      },
-      {
-        name: 'MultiEmbed',
-        url: `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${season}&e=${episode}`,
         sandboxed: false,
       },
       {
@@ -62,27 +57,22 @@ const getSources = (type, id, season = 1, episode = 1) => {
   return [
     {
       name: 'VidLink',
-      url: `https://vidlink.pro/movie/${id}?primaryColor=00d4ff&secondaryColor=ffd700&autoplay=true`,
+      url: `https://vidlink.pro/movie/${id}?primaryColor=00d4ff&secondaryColor=ffd700&iconColor=ffffff&icons=vid&player=jw&autoplay=true&title=true&poster=true`,
+      sandboxed: false,
+    },
+    {
+      name: 'VidLink 2',
+      url: `https://vidlink.pro/movie/${id}?primaryColor=00d4ff&secondaryColor=ffd700&player=default&autoplay=true`,
+      sandboxed: false,
+    },
+    {
+      name: 'MultiEmbed',
+      url: `https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1`,
       sandboxed: false,
     },
     {
       name: 'AutoEmbed',
       url: `https://player.autoembed.cc/embed/movie/${id}`,
-      sandboxed: false,
-    },
-    {
-      name: 'VidFast',
-      url: `https://vidfast.pro/movie/${id}?autoPlay=true`,
-      sandboxed: false,
-    },
-    {
-      name: 'SmashyStream',
-      url: `https://embed.smashystream.com/playere.php?tmdb=${id}`,
-      sandboxed: false,
-    },
-    {
-      name: 'MultiEmbed',
-      url: `https://multiembed.mov/?video_id=${id}&tmdb=1`,
       sandboxed: false,
     },
     {

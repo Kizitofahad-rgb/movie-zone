@@ -60,5 +60,19 @@
         });
       }
     </script>
+
+    <!-- Popup blocker for embedded iframes -->
+    <script>
+      // Intercept popup attempts from embedded iframes
+      const originalOpen = window.open;
+      window.open = function(url, ...args) {
+        // Only block if it came from an iframe (not our own app)
+        if (document.activeElement?.tagName === 'IFRAME') {
+          console.log('🛑 Blocked popup from iframe:', url);
+          return null;
+        }
+        return originalOpen.apply(this, [url, ...args]);
+      };
+    </script>
   </body>
 </html>
