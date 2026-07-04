@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../services/supabase';
 import { MdLocalMovies } from 'react-icons/md';
 import { FiMail, FiLock, FiUser, FiEye, FiEyeOff } from 'react-icons/fi';
-import { FcGoogle } from 'react-icons/fc';
 import toast from 'react-hot-toast';
 
 export default function Login() {
@@ -43,8 +42,6 @@ export default function Login() {
             data: {
               full_name: form.name.trim() || 'Movie Fan',
             },
-            // If you want to skip email confirmation (disabled in Supabase dashboard by default)
-            // emailRedirectTo: window.location.origin + '/',
           },
         });
 
@@ -52,11 +49,9 @@ export default function Login() {
 
         console.log('✅ Sign up response:', data);
         toast.success('🎉 Account created! Please check your email to confirm.');
-        // After signup, Supabase might automatically sign in if email confirmation is off.
-        // If it's on, user is not authenticated yet. We navigate anyway.
         navigate('/');
 
-        // ── NEW: Check if trial was used on this device ──
+        // Check if trial was used on this device
         if (localStorage.getItem('mz_trial_used') === 'true') {
           toast('Welcome back! Choose a plan to start watching 🎬', {
             duration: 5000,
@@ -92,32 +87,6 @@ export default function Login() {
       let displayMsg = messages[msg] || msg;
       toast.error(displayMsg);
     } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleGoogle = async () => {
-    try {
-      setLoading(true);
-      console.log('🔄 Starting Google OAuth...');
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: window.location.origin,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          },
-        },
-      });
-
-      if (error) throw error;
-
-      console.log('✅ Google OAuth initiated:', data);
-      // Supabase will redirect the browser automatically
-    } catch (err) {
-      console.error('❌ Google OAuth error:', err);
-      toast.error('Google sign-in failed. Please try again.');
       setLoading(false);
     }
   };
@@ -200,24 +169,7 @@ export default function Login() {
               </motion.div>
             </AnimatePresence>
 
-            {/* Google Button */}
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={handleGoogle}
-              disabled={loading}
-              className="w-full flex items-center justify-center gap-3 bg-white text-gray-800 font-bold py-3.5 rounded-xl mb-6 hover:bg-gray-100 transition-all disabled:opacity-50 shadow-lg"
-            >
-              <FcGoogle className="text-2xl" />
-              Continue with Google
-            </motion.button>
-
-            {/* Divider */}
-            <div className="flex items-center gap-4 mb-6">
-              <div className="flex-1 h-px bg-white/10" />
-              <span className="text-gray-500 text-xs">or with email</span>
-              <div className="flex-1 h-px bg-white/10" />
-            </div>
+            {/* ─── GOOGLE BUTTON REMOVED ─── */}
 
             {/* Form */}
             <form onSubmit={handleEmailAuth} className="space-y-4">
