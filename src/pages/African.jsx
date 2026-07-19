@@ -1,157 +1,1297 @@
-import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import MovieCard from '../components/MovieCard';
+import { useState, useEffect, useRef } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
-  getAfricanMovies,
-  getAfricanSeries,
-  safeFilter,
-  AFRICAN_COUNTRIES,
+  FiPlay, FiPlus, FiClock, FiCalendar,
+  FiX, FiCheck, FiArrowLeft, FiDownload,
+  FiTv, FiChevronDown, FiAlertCircle,
+} from 'react-icons/fi';
+import { AiFillStar } from 'react-icons/ai';
+import {
+  getMovieDetails,
+  getSeriesDetails,
+  IMAGE_BASE,
+  IMAGE_ORIGINAL,
 } from '../services/tmdb';
+import MovieCard from '../components/MovieCard';
+import PlayerLoader from '../components/PlayerLoader';
+import PaywallModal from '../components/PaywallModal';
+import CommentInput from '../components/CommentInput';
+import CommentList from '../components/CommentList';
+import { useAuth } from '../context/AuthContext';
+import { useSubscription } from '../context/SubscriptionContext';
+import { supabase } from '../services/supabase';
+import toast from 'react-hot-toast';
 
-export default function African() {
-  const [items, setItems] = useState([]);
+// ── NEW SOURCES (VidCore, VidPlus, ApiPlayer, VidLink, MultiEmbed, 2Embed) ──
+const getSources = (type, id, season = 1, episode = 1) => {
+  if (type === 'tv') {
+    return [
+      {
+        name: 'VidCore',
+        url: `https://player.vidcore.org/player.php?id=${id}&tmdb=1&s=${season}&e=${episode}&color=00d4ff&nextep=1`,
+        sandboxed: false,
+      },
+      {
+        name: 'VidPlus',
+        url: `https://player.vidplus.to/embed/tv/${id}/${season}/${episode}?autoplay=true&primarycolor=00D4FF&secondarycolor=ffd700&poster=true&title=true&chromecast=true`,
+        sandboxed: false,
+      },
+      {
+        name: 'ApiPlayer',
+        url: `https://apiplayer.ru/embed/tv/${id}/${season}/${episode}`,
+        sandboxed: false,
+      },
+      {
+        name: 'VidLink',
+        url: `https://vidlink.pro/tv/${id}/${season}/${episode}?primaryColor=00d4ff&secondaryColor=ffd700&player=jw&autoplay=true&nextbutton=true`,
+        sandboxed: false,
+      },
+      {
+        name: 'MultiEmbed',
+        url: `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${season}&e=${episode}`,
+        sandboxed: false,
+      },
+      {
+        name: '2Embed',
+        url: `https://www.2embed.online/embed/tv/${id}/${season}/${episode}`,
+        sandboxed: false,
+      },
+    ];
+  }
+  return [
+    {
+      name: 'VidCore',
+      url: `https://player.vidcore.org/player.php?id=${id}&tmdb=1&color=00d4ff`,
+      sandboxed: false,
+    },
+    {
+      name: 'VidPlus',
+      url: `https://player.vidplus.to/embed/movie/${id}?autoplay=true&primarycolor=00D4FF&secondarycolor=ffd700&poster=true&title=true`,
+      sandboxed: false,
+    },
+    {
+      name: 'ApiPlayer',
+      url: `https://apiplayer.ru/embed/movie/${id}`,
+      sandboxed: false,
+    },
+    {
+      name: 'VidLink',
+      url: `https://vidlink.pro/movie/${id}?primaryColor=00d4ff&secondaryColor=ffd700&player=jw&autoplay=true`,
+      sandboxed: false,
+    },
+    {
+      name: 'MultiEmbed',
+      url: `https://multiembed.mov/?video_id=${id}&tmdb=1`,
+      sandboxed: false,
+    },
+    {
+      name: '2Embed',
+      url: `https://www.2embed.online/embed/movie/${id}`,
+      sandboxed: false,
+    },
+  ];
+};
+
+// ── Helper to generate download URLs ──
+const getDownloadUrls = (title, year, id) => {
+  const searchQuery = encodeURIComponent(`${title} ${year}`);
+  return {
+    yts: `https://yts.mx/movies/${title.toLowerCase().replace(/[\s:]/g, '-')}-${year}`,
+  };
+};
+
+// ── Quality options with file sizes (like MovieBox) ──
+const qualityOptions = [
+  { label: '360P', size: '~292 MB', color: 'text-gray-400', icon: '📱' },
+  { label: '480P', size: '~356 MB', color: 'text-blue-400', icon: '📺' },
+  { label: '1080P', size: '~1.04 GB', color: 'text-primary', icon: '🎬' },
+  { label: '4K', size: '~4.2 GB', color: 'text-gold', icon: '🌟' },
+];
+
+export default function MovieDetail() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const isTV = window.location.pathname.startsWith('/tv');
+
+  // Auth & Subscription
+  const { user } = useAuth();
+  const { isActive, loading: subLoading, refresh } = useSubscription();
+
+  const [details, setDetails] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState('movies');
-  const [country, setCountry] = useState('ALL');
-  const [page, setPage] = useState(1);
+
+  const [showPlayer, setShowPlayer] = useState(false);
+  const [showLoader, setShowLoader] = useState(false);
+  const [sourceIndex, setSourceIndex] = useState(0);
+  const [sources, setSources] = useState([]);
+  const [iframeReady, setIframeReady] = useState(false);
+
+  const [showTrailer, setShowTrailer] = useState(false);
+
+  const [selectedSeason, setSelectedSeason] = useState(1);
+  const [selectedEpisode, setSelectedEpisode] = useState(1);
+  const [seasonOpen, setSeasonOpen] = useState(false);
+  const [episodes, setEpisodes] = useState([]);
+
+  const [inWatchlist, setInWatchlist] = useState(false);
+  const [activeTab, setActiveTab] = useState('overview');
+  const [showDownload, setShowDownload] = useState(false);
+
+  // Schedule state
+  const [showSchedule, setShowSchedule] = useState(false);
+  const [scheduleDateTime, setScheduleDateTime] = useState('');
+
+  // ── New: Download quality selection ──
+  const [selectedQuality, setSelectedQuality] = useState('1080P');
+
+  // Paywall state
+  const [showPaywall, setShowPaywall] = useState(false);
+  const [paywallReason, setPaywallReason] = useState('upgrade');
+
+  // Comments refresh
+  const [commentRefreshKey, setCommentRefreshKey] = useState(0);
+
+  const iframeRef = useRef(null);
 
   useEffect(() => {
     window.scrollTo(0, 0);
-    load(1);
-  }, [tab, country]);
+    const load = async () => {
+      try {
+        setLoading(true);
+        const res = isTV
+          ? await getSeriesDetails(id)
+          : await getMovieDetails(id);
+        setDetails(res.data);
+        if (isTV && res.data.seasons) {
+          const first = res.data.seasons.find((s) => s.season_number > 0);
+          if (first) {
+            setSelectedSeason(first.season_number);
+            setEpisodes(
+              Array.from({ length: first.episode_count }, (_, i) => i + 1)
+            );
+          }
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [id]);
 
-  const load = async (p = 1) => {
-    try {
-      setLoading(true);
-      const res =
-        tab === 'movies'
-          ? await getAfricanMovies(country, p)
-          : await getAfricanSeries(country, p);
-      const filtered = safeFilter(res.data.results || []);
-      if (p === 1) setItems(filtered);
-      else setItems((prev) => [...prev, ...filtered]);
-      setPage(p);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    setSources(
+      getSources(isTV ? 'tv' : 'movie', id, selectedSeason, selectedEpisode)
+    );
+    setSourceIndex(0);
+  }, [selectedSeason, selectedEpisode, id]);
+
+  const handleWatch = () => {
+    if (!user) {
+      toast('Please sign in to start your free trial', {
+        icon: '🎬',
+        duration: 4000,
+      });
+      navigate('/login');
+      return;
+    }
+
+    if (!isActive) {
+      setPaywallReason('trial_ended');
+      setShowPaywall(true);
+      return;
+    }
+
+    const newSources = getSources(
+      isTV ? 'tv' : 'movie',
+      id,
+      selectedSeason,
+      selectedEpisode
+    );
+    setSources(newSources);
+    setSourceIndex(0);
+    setIframeReady(false);
+    setShowLoader(true);
+    setShowPlayer(true);
+  };
+
+  const handleLoaderComplete = () => {
+    setShowLoader(false);
+    setIframeReady(true);
+  };
+
+  const handleTryNextServer = () => {
+    if (sourceIndex < sources.length - 1) {
+      const next = sourceIndex + 1;
+      setIframeReady(false);
+      setShowLoader(true);
+      setSourceIndex(next);
+      setTimeout(() => {
+        setShowLoader(false);
+        setIframeReady(true);
+      }, 4200);
+      toast(`Trying Server ${next + 1}...`, { icon: '🔄' });
+    } else {
+      toast.error('All servers tried. Content may not be available yet.');
     }
   };
 
-  return (
-    <div className="min-h-screen bg-dark px-4 sm:px-8 py-8">
-      <div className="max-w-7xl mx-auto">
+  const switchServer = (i) => {
+    setSourceIndex(i);
+    setIframeReady(false);
+    setShowLoader(true);
+    setTimeout(() => {
+      setShowLoader(false);
+      setIframeReady(true);
+    }, 4200);
+  };
 
-        {/* Header */}
+  const handleSeasonChange = (seasonNum, episodeCount) => {
+    setSelectedSeason(seasonNum);
+    setSelectedEpisode(1);
+    setEpisodes(Array.from({ length: episodeCount }, (_, i) => i + 1));
+    setSeasonOpen(false);
+  };
+
+  const handleWatchlist = () => {
+    setInWatchlist(!inWatchlist);
+    toast.success(
+      inWatchlist ? 'Removed from watchlist' : '✅ Added to watchlist!'
+    );
+  };
+
+  const closePlayer = () => {
+    setShowPlayer(false);
+    setShowLoader(false);
+    setIframeReady(false);
+  };
+
+  const handleCommentAdded = () => {
+    setCommentRefreshKey(prev => prev + 1);
+    toast.success('Comment added! 🎉');
+  };
+
+  const handleSchedule = async () => {
+    if (!user) {
+      toast.error('Please sign in to schedule a movie.');
+      return;
+    }
+    if (!scheduleDateTime) {
+      toast.error('Please select a date and time.');
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('scheduled_watch')
+        .insert({
+          user_id: user.id,
+          movie_id: movieId,
+          movie_type: movieType,
+          title: title,
+          poster_path: details.poster_path,
+          scheduled_at: new Date(scheduleDateTime).toISOString(),
+        });
+
+      if (error) throw error;
+
+      toast.success(`📅 "${title}" scheduled for ${new Date(scheduleDateTime).toLocaleString()}`);
+      setShowSchedule(false);
+      setScheduleDateTime('');
+    } catch (err) {
+      console.error('Schedule error:', err);
+      toast.error('Failed to schedule. Please try again.');
+    }
+  };
+
+  // ── Download handler (keeps user inside the app) ──
+  const handleDownload = (quality) => {
+    toast.loading(`Starting ${quality} download...`, {
+      duration: 3000,
+    });
+    
+    setTimeout(() => {
+      toast.success(`✅ ${quality} download started!`, {
+        duration: 3000,
+      });
+      // Open YTS search in new tab but keep app open
+      window.open(`https://yts.mx/movies/${title.toLowerCase().replace(/[\s:]/g, '-')}-${year}`, '_blank');
+    }, 1500);
+  };
+
+  if (loading || subLoading) {
+    return (
+      <div className="min-h-screen bg-dark flex items-center justify-center">
         <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+          className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full"
+        />
+      </div>
+    );
+  }
+
+  if (!details) return null;
+
+  const title = details.title || details.name;
+  const year = (details.release_date || details.first_air_date || '').split('-')[0];
+  const runtime = details.runtime
+    ? `${Math.floor(details.runtime / 60)}h ${details.runtime % 60}m`
+    : details.episode_run_time?.[0]
+    ? `${details.episode_run_time[0]}m / ep`
+    : 'N/A';
+
+  const trailer = details.videos?.results?.find(
+    (v) => v.type === 'Trailer' && v.site === 'YouTube'
+  );
+  const cast = details.credits?.cast?.slice(0, 12) || [];
+  const similar = details.similar?.results?.slice(0, 10) || [];
+  const genres = details.genres || [];
+  const seasons = details.seasons?.filter((s) => s.season_number > 0) || [];
+
+  const movieType = isTV ? 'tv' : 'movie';
+  const movieId = parseInt(id);
+
+  return (
+    <div className="min-h-screen bg-dark">
+
+      {/* ── BACKDROP ── */}
+      <div className="relative h-[60vh] md:h-[75vh] overflow-hidden">
+        <motion.img
+          initial={{ scale: 1.1 }}
+          animate={{ scale: 1 }}
+          transition={{ duration: 1.5 }}
+          src={`${IMAGE_ORIGINAL}${details.backdrop_path}`}
+          alt={title}
+          className="w-full h-full object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-dark via-dark/60 to-black/20" />
+        <div className="absolute inset-0 bg-gradient-to-r from-dark/80 via-transparent to-transparent" />
+
+        <motion.button
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          onClick={() => navigate(-1)}
+          className="absolute top-6 left-6 flex items-center gap-2 glass px-4 py-2 rounded-full text-white hover:text-primary border border-white/20 hover:border-primary transition-all text-sm"
         >
-          <h1
-            className="text-5xl md:text-6xl font-black text-white mb-2"
-            style={{ fontFamily: 'Bebas Neue, sans-serif' }}
+          <FiArrowLeft /> Back
+        </motion.button>
+
+        <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-10">
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7 }}
           >
-            🌍 <span className="gradient-text">African Zone</span>
-          </h1>
-          <p className="text-gray-400">
-            Nollywood, South African cinema, and stories from across Africa —
-            content you won't find anywhere else.
-          </p>
+            <div className="flex flex-wrap gap-2 mb-3">
+              {genres.map((g) => (
+                <span
+                  key={g.id}
+                  className="text-xs px-3 py-1 rounded-full border border-primary/40 text-primary bg-primary/10"
+                >
+                  {g.name}
+                </span>
+              ))}
+            </div>
+
+            <h1
+              className="text-4xl sm:text-6xl md:text-7xl font-black text-white mb-4 leading-none"
+              style={{
+                fontFamily: 'Bebas Neue, sans-serif',
+                textShadow: '0 0 40px rgba(0,212,255,0.3)',
+                letterSpacing: '2px',
+              }}
+            >
+              {title}
+            </h1>
+
+            <div className="flex flex-wrap items-center gap-4 mb-6 text-sm text-gray-300">
+              <div className="flex items-center gap-1">
+                <AiFillStar className="text-gold" />
+                <span className="font-bold text-gold">
+                  {details.vote_average?.toFixed(1)}
+                </span>
+                <span className="text-gray-500">/ 10</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <FiCalendar className="text-primary" />
+                <span>{year}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <FiClock className="text-primary" />
+                <span>{runtime}</span>
+              </div>
+              {details.number_of_seasons && (
+                <span className="px-2 py-0.5 bg-white/10 rounded-full">
+                  {details.number_of_seasons} Season
+                  {details.number_of_seasons > 1 ? 's' : ''}
+                </span>
+              )}
+              {details.number_of_episodes && (
+                <span className="px-2 py-0.5 bg-white/10 rounded-full">
+                  {details.number_of_episodes} Episodes
+                </span>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <motion.button
+                whileHover={{
+                  scale: 1.05,
+                  boxShadow: '0 0 40px rgba(0,212,255,0.7)',
+                }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleWatch}
+                className="flex items-center gap-3 bg-primary text-black font-black px-8 py-3.5 rounded-full text-sm tracking-widest uppercase"
+              >
+                <FiPlay fill="black" className="text-lg" />
+                {isTV
+                  ? `WATCH S${selectedSeason} E${selectedEpisode}`
+                  : 'WATCH NOW'}
+              </motion.button>
+
+              {trailer && (
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setShowTrailer(true)}
+                  className="flex items-center gap-3 glass text-white font-semibold px-6 py-3.5 rounded-full text-sm border border-white/20 hover:border-yellow-400/60"
+                >
+                  🎬 Watch Trailer
+                </motion.button>
+              )}
+
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setShowDownload(true)}
+                className="flex items-center gap-3 glass text-white font-semibold px-6 py-3.5 rounded-full text-sm border border-white/20 hover:border-green-400/60"
+              >
+                <FiDownload /> Download
+              </motion.button>
+
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setShowSchedule(true)}
+                className="flex items-center gap-3 glass text-white font-semibold px-6 py-3.5 rounded-full text-sm border border-white/20 hover:border-primary/60"
+              >
+                <FiCalendar className="text-primary" /> Schedule
+              </motion.button>
+
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={handleWatchlist}
+                className={`w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all ${
+                  inWatchlist
+                    ? 'bg-primary border-primary text-black'
+                    : 'glass border-white/30 text-white hover:border-primary hover:text-primary'
+                }`}
+              >
+                {inWatchlist
+                  ? <FiCheck className="text-xl" />
+                  : <FiPlus className="text-xl" />}
+              </motion.button>
+            </div>
+          </motion.div>
+        </div>
+      </div>
+
+      {/* ── MAIN CONTENT ── */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-8 py-10">
+
+        {/* House Finder Ad */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="w-full mb-10 rounded-2xl overflow-hidden border border-primary/20 glass p-4 flex items-center justify-between gap-4"
+          style={{
+            background:
+              'linear-gradient(135deg, rgba(0,212,255,0.05), rgba(255,215,0,0.05))',
+          }}
+        >
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center text-2xl flex-shrink-0">
+              🏠
+            </div>
+            <div>
+              <p className="text-white font-bold text-sm">
+                Looking for your dream home?
+              </p>
+              <p className="text-gray-400 text-xs">
+                Find and list properties on House Finder — Uganda's property platform
+              </p>
+            </div>
+          </div>
+          <motion.a
+            href="https://studio-6076456451-c38fd.web.app/"
+            target="_blank"
+            rel="noreferrer"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className="flex-shrink-0 px-5 py-2 bg-primary text-black font-bold rounded-full text-xs"
+          >
+            Explore →
+          </motion.a>
         </motion.div>
 
-        {/* Movies / Series Tabs */}
-        <div className="flex gap-2 mb-6">
-          {['movies', 'series'].map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`px-6 py-2.5 rounded-full font-medium capitalize text-sm transition-all ${
-                tab === t
-                  ? 'bg-primary text-black font-bold'
-                  : 'glass text-gray-400 hover:text-white border border-white/10'
-              }`}
-            >
-              {t === 'movies' ? '🎬 Movies' : '📺 Series'}
-            </button>
-          ))}
-        </div>
+        <div className="flex flex-col lg:flex-row gap-10">
 
-        {/* Country Filter */}
-        <div className="flex gap-2 mb-8 overflow-x-auto hide-scrollbar pb-2">
-          {AFRICAN_COUNTRIES.map((c) => (
-            <motion.button
-              key={c.code}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setCountry(c.code)}
-              className={`flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-full text-sm transition-all ${
-                country === c.code
-                  ? 'bg-primary text-black font-bold'
-                  : 'glass text-gray-400 hover:text-white border border-white/10'
-              }`}
-            >
-              <span>{c.flag}</span>
-              {c.name}
-            </motion.button>
-          ))}
-        </div>
+          {/* Poster */}
+          <motion.div
+            initial={{ opacity: 0, x: -30 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="lg:w-64 flex-shrink-0"
+          >
+            <div className="card-3d rounded-2xl overflow-hidden shadow-2xl shadow-primary/20 mb-6">
+              <img
+                src={`${IMAGE_BASE}${details.poster_path}`}
+                alt={title}
+                className="w-full"
+              />
+            </div>
 
-        {/* Grid */}
-        {loading && items.length === 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-            {Array(18).fill(0).map((_, i) => (
-              <div key={i} className="rounded-xl overflow-hidden">
-                <div className="aspect-[2/3] shimmer rounded-t-xl" />
-                <div className="bg-darkCard p-3 space-y-2">
-                  <div className="h-3 shimmer rounded w-3/4" />
-                  <div className="h-3 shimmer rounded w-1/2" />
+            <div className="glass rounded-2xl p-4 space-y-3 border border-white/10">
+              {[
+                { label: 'Status', value: details.status },
+                {
+                  label: 'Rating',
+                  value: `${details.vote_average?.toFixed(1)} / 10`,
+                },
+                {
+                  label: 'Votes',
+                  value: details.vote_count?.toLocaleString(),
+                },
+                ...(details.budget
+                  ? [{ label: 'Budget', value: `$${(details.budget / 1e6).toFixed(0)}M` }]
+                  : []),
+                {
+                  label: 'Language',
+                  value: details.original_language?.toUpperCase(),
+                },
+              ].map((item) => (
+                <div key={item.label} className="flex justify-between text-sm">
+                  <span className="text-gray-500">{item.label}</span>
+                  <span className="text-white font-medium">{item.value}</span>
                 </div>
+              ))}
+            </div>
+          </motion.div>
+
+          {/* Right Content */}
+          <motion.div
+            initial={{ opacity: 0, x: 30 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="flex-1"
+          >
+            {/* Season + Episode Picker */}
+            {isTV && seasons.length > 0 && (
+              <div className="mb-8 glass rounded-2xl p-5 border border-primary/20">
+                <h3 className="text-white font-bold text-lg mb-4 flex items-center gap-2">
+                  <FiTv className="text-primary" /> Episodes
+                </h3>
+
+                <div className="relative mb-4">
+                  <button
+                    onClick={() => setSeasonOpen(!seasonOpen)}
+                    className="flex items-center justify-between w-full sm:w-64 bg-white/10 border border-white/20 hover:border-primary rounded-xl px-4 py-3 text-white text-sm transition-all"
+                  >
+                    <span className="font-medium">Season {selectedSeason}</span>
+                    <motion.div
+                      animate={{ rotate: seasonOpen ? 180 : 0 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <FiChevronDown />
+                    </motion.div>
+                  </button>
+
+                  <AnimatePresence>
+                    {seasonOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="absolute top-14 left-0 z-30 w-full sm:w-64 glass border border-white/20 rounded-xl overflow-auto shadow-2xl"
+                        style={{ maxHeight: '280px' }}
+                      >
+                        {seasons.map((season) => (
+                          <button
+                            key={season.season_number}
+                            onClick={() =>
+                              handleSeasonChange(
+                                season.season_number,
+                                season.episode_count
+                              )
+                            }
+                            className={`w-full flex items-center justify-between px-4 py-3 text-sm transition-colors hover:bg-primary/20 ${
+                              selectedSeason === season.season_number
+                                ? 'text-primary bg-primary/10'
+                                : 'text-gray-300'
+                            }`}
+                          >
+                            <span>{season.name}</span>
+                            <span className="text-gray-500 text-xs">
+                              {season.episode_count} eps
+                            </span>
+                          </button>
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  {episodes.map((ep) => (
+                    <motion.button
+                      key={ep}
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => {
+                        setSelectedEpisode(ep);
+                        toast.success(`Selected S${selectedSeason} E${ep}`);
+                      }}
+                      className={`w-10 h-10 rounded-lg text-sm font-bold transition-all ${
+                        selectedEpisode === ep
+                          ? 'bg-primary text-black shadow-lg shadow-primary/40'
+                          : 'glass border border-white/20 text-gray-400 hover:text-white hover:border-primary/60'
+                      }`}
+                    >
+                      {ep}
+                    </motion.button>
+                  ))}
+                </div>
+
+                <motion.button
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={handleWatch}
+                  className="mt-4 flex items-center gap-2 bg-primary text-black font-black px-8 py-3 rounded-xl text-sm"
+                >
+                  <FiPlay fill="black" />
+                  Play S{selectedSeason} E{selectedEpisode}
+                </motion.button>
               </div>
-            ))}
+            )}
+
+            {/* Tabs */}
+            <div className="flex gap-1 mb-8 bg-white/5 rounded-full p-1 w-fit">
+              {['overview', 'cast', 'reviews'].map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`px-6 py-2 rounded-full text-sm font-medium capitalize transition-all ${
+                    activeTab === tab
+                      ? 'bg-primary text-black font-bold'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+
+            <AnimatePresence mode="wait">
+              {activeTab === 'overview' && (
+                <motion.div
+                  key="overview"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                >
+                  <h3 className="text-white font-bold text-lg mb-3">Synopsis</h3>
+                  <p className="text-gray-300 leading-relaxed text-sm md:text-base mb-8">
+                    {details.overview}
+                  </p>
+                  {details.production_companies?.filter((c) => c.logo_path)
+                    .length > 0 && (
+                    <div>
+                      <h3 className="text-white font-bold text-lg mb-4">
+                        Production
+                      </h3>
+                      <div className="flex flex-wrap gap-3">
+                        {details.production_companies
+                          .filter((c) => c.logo_path)
+                          .slice(0, 5)
+                          .map((company) => (
+                            <div
+                              key={company.id}
+                              className="glass px-4 py-2 rounded-xl border border-white/10"
+                            >
+                              <img
+                                src={`${IMAGE_BASE}${company.logo_path}`}
+                                alt={company.name}
+                                className="h-5 object-contain opacity-70"
+                              />
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+                </motion.div>
+              )}
+
+              {activeTab === 'cast' && (
+                <motion.div
+                  key="cast"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                >
+                  <h3 className="text-white font-bold text-lg mb-6">Top Cast</h3>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-4">
+                    {cast.map((person, i) => (
+                      <motion.div
+                        key={person.id}
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: i * 0.05 }}
+                        whileHover={{ y: -5 }}
+                        className="text-center group"
+                      >
+                        <div className="w-full aspect-square rounded-xl overflow-hidden mb-2 border-2 border-transparent group-hover:border-primary transition-all">
+                          <img
+                            src={
+                              person.profile_path
+                                ? `${IMAGE_BASE}${person.profile_path}`
+                                : 'https://via.placeholder.com/150?text=?'
+                            }
+                            alt={person.name}
+                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                          />
+                        </div>
+                        <p className="text-white text-xs font-medium">
+                          {person.name}
+                        </p>
+                        <p className="text-gray-500 text-xs truncate">
+                          {person.character}
+                        </p>
+                      </motion.div>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+
+              {activeTab === 'reviews' && (
+                <motion.div
+                  key="reviews"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="space-y-4"
+                >
+                  {details.reviews?.results?.length > 0 ? (
+                    details.reviews.results.slice(0, 4).map((review, i) => (
+                      <motion.div
+                        key={review.id}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.1 }}
+                        className="glass rounded-xl p-5 border border-white/10"
+                      >
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center">
+                              <span className="text-primary font-bold text-sm">
+                                {review.author?.[0]?.toUpperCase()}
+                              </span>
+                            </div>
+                            <div>
+                              <p className="text-white text-sm font-medium">
+                                {review.author}
+                              </p>
+                              <p className="text-gray-500 text-xs">
+                                {new Date(review.created_at).toLocaleDateString()}
+                              </p>
+                            </div>
+                          </div>
+                          {review.author_details?.rating && (
+                            <div className="flex items-center gap-1 bg-gold/10 px-3 py-1 rounded-full">
+                              <AiFillStar className="text-gold text-xs" />
+                              <span className="text-gold text-xs font-bold">
+                                {review.author_details.rating}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        <p className="text-gray-400 text-sm leading-relaxed line-clamp-4">
+                          {review.content}
+                        </p>
+                      </motion.div>
+                    ))
+                  ) : (
+                    <div className="text-center py-12 text-gray-500">
+                      <p className="text-4xl mb-3">🎬</p>
+                      <p>No reviews yet</p>
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        </div>
+
+        {/* Similar */}
+        {similar.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="mt-16"
+          >
+            <div className="flex items-center gap-3 mb-6">
+              <span className="text-2xl">🎯</span>
+              <h2 className="text-2xl font-bold text-white">
+                You Might Also Like
+              </h2>
+              <div className="flex-1 h-px bg-gradient-to-r from-primary/50 to-transparent ml-2" />
+            </div>
+            <div className="flex gap-4 overflow-x-auto hide-scrollbar pb-4">
+              {similar.map((movie, i) => (
+                <MovieCard key={movie.id} movie={movie} index={i} />
+              ))}
+            </div>
+          </motion.div>
+        )}
+
+        {/* ─── COMMENTS SECTION ─── */}
+        <motion.div
+          initial={{ opacity: 0, y: 40 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="mt-16 max-w-3xl mx-auto w-full"
+        >
+          <div className="flex items-center gap-3 mb-6">
+            <span className="text-2xl">💬</span>
+            <h2 className="text-2xl font-bold text-white">
+              Comments
+            </h2>
+            <div className="flex-1 h-px bg-gradient-to-r from-primary/50 to-transparent ml-2" />
           </div>
-        ) : items.length > 0 ? (
+
+          <CommentInput 
+            movieId={movieId} 
+            movieType={movieType} 
+            onCommentAdded={handleCommentAdded}
+          />
+
+          <CommentList 
+            key={commentRefreshKey}
+            movieId={movieId} 
+            movieType={movieType} 
+          />
+        </motion.div>
+      </div>
+
+      {/* ══════════════════════════════════ */}
+      {/* FULLSCREEN PLAYER                 */}
+      {/* ══════════════════════════════════ */}
+      <AnimatePresence>
+        {showPlayer && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4"
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black flex flex-col"
           >
-            {items.map((item, i) => (
-              <MovieCard
-                key={`${item.id}-${i}`}
-                movie={{
-                  ...item,
-                  media_type: tab === 'series' ? 'tv' : 'movie',
-                }}
-                index={i}
-              />
-            ))}
-          </motion.div>
-        ) : (
-          <div className="text-center py-20">
-            <p className="text-6xl mb-4">🌍</p>
-            <p className="text-white text-xl font-bold mb-2">
-              No titles found for this filter
-            </p>
-            <p className="text-gray-500">Try a different country or category</p>
-          </div>
-        )}
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 bg-black/90 border-b border-white/10 flex-shrink-0 gap-3 flex-wrap">
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                <span
+                  className="text-white font-bold text-sm tracking-wide"
+                  style={{ fontFamily: 'Bebas Neue, sans-serif' }}
+                >
+                  {isTV
+                    ? `${title} — S${selectedSeason} E${selectedEpisode}`
+                    : title?.toUpperCase()}
+                </span>
 
-        {/* Load More */}
-        {items.length > 0 && (
-          <div className="flex justify-center mt-12">
-            <motion.button
-              whileHover={{ scale: 1.05, boxShadow: '0 0 30px rgba(0,212,255,0.4)' }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => load(page + 1)}
-              disabled={loading}
-              className="px-12 py-4 bg-primary text-black font-black rounded-full tracking-widest text-sm disabled:opacity-50"
-            >
-              {loading ? '⏳ Loading...' : '🔽 LOAD MORE'}
-            </motion.button>
-          </div>
+                {/* Server buttons with names */}
+                <div className="flex gap-1 flex-wrap">
+                  {sources.map((source, i) => (
+                    <button
+                      key={i}
+                      onClick={() => switchServer(i)}
+                      className={`text-xs px-3 py-1 rounded-full transition-all ${
+                        sourceIndex === i
+                          ? 'bg-primary text-black font-bold'
+                          : 'bg-white/10 text-gray-400 hover:bg-white/20'
+                      }`}
+                    >
+                      {source.name || `S${i + 1}`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Episode nav */}
+              {isTV && (
+                <div className="hidden sm:flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      if (selectedEpisode > 1) {
+                        setSelectedEpisode((e) => e - 1);
+                        setIframeReady(false);
+                        setShowLoader(true);
+                      }
+                    }}
+                    disabled={selectedEpisode <= 1}
+                    className="text-xs px-3 py-1 glass rounded-full border border-white/20 hover:border-primary disabled:opacity-30 text-white"
+                  >
+                    ← Prev
+                  </button>
+                  <span className="text-white text-xs font-bold">
+                    S{selectedSeason} E{selectedEpisode}
+                  </span>
+                  <button
+                    onClick={() => {
+                      if (selectedEpisode < episodes.length) {
+                        setSelectedEpisode((e) => e + 1);
+                        setIframeReady(false);
+                        setShowLoader(true);
+                      }
+                    }}
+                    disabled={selectedEpisode >= episodes.length}
+                    className="text-xs px-3 py-1 glass rounded-full border border-white/20 hover:border-primary disabled:opacity-30 text-white"
+                  >
+                    Next →
+                  </button>
+                </div>
+              )}
+
+              <motion.button
+                whileHover={{ scale: 1.1, rotate: 90 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={closePlayer}
+                className="w-9 h-9 rounded-full bg-white/10 hover:bg-red-500 flex items-center justify-center text-white transition-colors flex-shrink-0"
+              >
+                <FiX />
+              </motion.button>
+            </div>
+
+            {/* Player Body — NO sandbox, referrerPolicy used for redirect protection */}
+            <div className="flex-1 relative bg-black">
+              <AnimatePresence>
+                {showLoader && (
+                  <PlayerLoader
+                    onComplete={handleLoaderComplete}
+                    title={
+                      isTV
+                        ? `${title} S${selectedSeason}E${selectedEpisode}`
+                        : title
+                    }
+                  />
+                )}
+              </AnimatePresence>
+
+              {iframeReady && (
+                <iframe
+                  key={`${sourceIndex}-${selectedSeason}-${selectedEpisode}`}
+                  src={sources[sourceIndex]?.url}
+                  className="w-full h-full"
+                  allowFullScreen
+                  allow="autoplay; fullscreen; picture-in-picture; encrypted-media; accelerometer; gyroscope"
+                  referrerPolicy="strict-origin"
+                  title={title}
+                  style={{ border: 'none' }}
+                  onError={() => {
+                    toast.error('Server unavailable — trying next one...');
+                    handleTryNextServer();
+                  }}
+                />
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-4 py-2 bg-black/90 border-t border-white/10 flex items-center justify-between flex-shrink-0 flex-wrap gap-2">
+              <button
+                onClick={handleTryNextServer}
+                className="flex items-center gap-2 text-gray-500 hover:text-primary text-xs transition-colors"
+              >
+                <FiAlertCircle />
+                Not loading? Try next server
+              </button>
+
+              <p className="text-gray-600 text-xs">
+                💡 If a new tab opens, close it and continue watching here
+              </p>
+
+              <p className="text-primary text-xs font-bold tracking-widest">
+                MOVIE ZONE
+              </p>
+            </div>
+          </motion.div>
         )}
-      </div>
+      </AnimatePresence>
+
+      {/* ─── TRAILER MODAL ─── */}
+      <AnimatePresence>
+        {showTrailer && trailer && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-xl flex items-center justify-center p-4"
+            onClick={() => setShowTrailer(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-4xl rounded-2xl overflow-hidden border border-white/10 shadow-2xl"
+            >
+              <div className="flex items-center justify-between px-5 py-3 bg-black border-b border-white/10">
+                <span
+                  className="text-white font-bold"
+                  style={{ fontFamily: 'Bebas Neue, sans-serif' }}
+                >
+                  🎬 OFFICIAL TRAILER — {title?.toUpperCase()}
+                </span>
+                <motion.button
+                  whileHover={{ scale: 1.1, rotate: 90 }}
+                  onClick={() => setShowTrailer(false)}
+                  className="w-8 h-8 rounded-full bg-white/10 hover:bg-red-500 flex items-center justify-center text-white transition-colors"
+                >
+                  <FiX />
+                </motion.button>
+              </div>
+
+              <div
+                className="relative w-full"
+                style={{ paddingBottom: '56.25%' }}
+              >
+                <iframe
+                  src={`https://www.youtube.com/embed/${trailer.key}?autoplay=1&rel=0&modestbranding=1&showinfo=0`}
+                  className="absolute inset-0 w-full h-full"
+                  allowFullScreen
+                  allow="autoplay; fullscreen"
+                  title={`${title} Trailer`}
+                  style={{ border: 'none' }}
+                />
+              </div>
+
+              <div className="px-5 py-2 bg-black border-t border-white/10 flex justify-between">
+                <p className="text-gray-500 text-xs">
+                  Watching inside Movie Zone ✅
+                </p>
+                <p className="text-primary text-xs font-bold">MOVIE ZONE</p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ─── DOWNLOAD MODAL ─── */}
+      <AnimatePresence>
+        {showDownload && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-xl flex items-center justify-center p-4"
+            onClick={() => setShowDownload(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0, y: 40 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md glass rounded-2xl border border-white/10 overflow-hidden shadow-2xl"
+            >
+              {/* ── Header ── */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
+                <div className="flex items-center gap-3">
+                  <FiDownload className="text-primary text-xl" />
+                  <span className="text-white font-bold">Download</span>
+                </div>
+                <button
+                  onClick={() => setShowDownload(false)}
+                  className="w-8 h-8 rounded-full bg-white/10 hover:bg-red-500 flex items-center justify-center text-white transition-colors"
+                >
+                  <FiX />
+                </button>
+              </div>
+
+              {/* ── Movie Info ── */}
+              <div className="px-6 py-4 border-b border-white/10">
+                <div className="flex items-center gap-4">
+                  <img
+                    src={`${IMAGE_BASE}${details.poster_path}`}
+                    alt={title}
+                    className="w-14 h-20 object-cover rounded-lg"
+                  />
+                  <div>
+                    <p className="text-white font-bold">{title}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-gray-400 text-xs">{year}</span>
+                      <span className="text-gray-600 text-xs">•</span>
+                      <span className="text-gray-400 text-xs">{runtime}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {genres.slice(0, 3).map((g) => (
+                        <span key={g.id} className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/30">
+                          {g.name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* ── Quality Selection ── */}
+              <div className="px-6 py-4">
+                <p className="text-gray-400 text-xs mb-3">Select Quality</p>
+                <div className="space-y-2">
+                  {qualityOptions.map((quality) => (
+                    <motion.button
+                      key={quality.label}
+                      whileHover={{ scale: 1.02, x: 4 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => {
+                        setSelectedQuality(quality.label);
+                        handleDownload(quality.label);
+                      }}
+                      className={`w-full flex items-center justify-between bg-white/5 hover:bg-white/10 border rounded-xl px-4 py-3 transition-all ${
+                        selectedQuality === quality.label
+                          ? 'border-primary/60 bg-primary/10'
+                          : 'border-white/10 hover:border-primary/40'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl">{quality.icon}</span>
+                        <div className="text-left">
+                          <p className={`font-bold text-sm ${quality.color}`}>
+                            {quality.label}
+                          </p>
+                          <p className="text-gray-500 text-xs">{quality.size}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500">MP4</span>
+                        <FiDownload className="text-gray-400 text-sm" />
+                      </div>
+                    </motion.button>
+                  ))}
+                </div>
+              </div>
+
+              {/* ── Download button ── */}
+              <div className="px-6 pb-4">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => handleDownload(selectedQuality)}
+                  className="w-full py-3 bg-primary text-black font-bold rounded-xl text-sm tracking-wider hover:shadow-lg hover:shadow-primary/40 transition-all flex items-center justify-center gap-2"
+                >
+                  <FiDownload className="text-lg" />
+                  Download {selectedQuality}
+                </motion.button>
+              </div>
+
+              {/* ── Disclaimer ── */}
+              <div className="px-6 py-3 border-t border-white/10">
+                <p className="text-gray-500 text-[10px] text-center leading-relaxed">
+                  ⚠️ Movie Zone does not host any files. All downloads lead to third-party sites. 
+                  Files are for personal use only. Content owners can request removal.
+                </p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ─── SCHEDULE MODAL ─── */}
+      <AnimatePresence>
+        {showSchedule && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-xl flex items-center justify-center p-4"
+            onClick={() => setShowSchedule(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0, y: 40 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md glass rounded-2xl border border-white/10 overflow-hidden shadow-2xl"
+            >
+              <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
+                <div className="flex items-center gap-3">
+                  <FiCalendar className="text-primary text-xl" />
+                  <span className="text-white font-bold">Schedule Movie</span>
+                </div>
+                <button
+                  onClick={() => setShowSchedule(false)}
+                  className="w-8 h-8 rounded-full bg-white/10 hover:bg-red-500 flex items-center justify-center text-white transition-colors"
+                >
+                  <FiX />
+                </button>
+              </div>
+
+              <div className="px-6 py-4 border-b border-white/10">
+                <div className="flex items-center gap-4">
+                  <img
+                    src={`${IMAGE_BASE}${details.poster_path}`}
+                    alt={title}
+                    className="w-14 h-20 object-cover rounded-lg"
+                  />
+                  <div>
+                    <p className="text-white font-bold">{title}</p>
+                    <p className="text-gray-400 text-sm">{year}</p>
+                    <div className="flex items-center gap-1 mt-1">
+                      <AiFillStar className="text-gold text-xs" />
+                      <span className="text-gold text-xs">
+                        {details.vote_average?.toFixed(1)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="px-6 py-4 space-y-4">
+                <div>
+                  <label className="block text-gray-400 text-sm mb-2">
+                    Select date and time:
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={scheduleDateTime}
+                    onChange={(e) => setScheduleDateTime(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 focus:border-primary rounded-xl px-4 py-3 text-white outline-none transition-all text-sm"
+                    min={new Date().toISOString().slice(0, 16)}
+                  />
+                </div>
+
+                <button
+                  onClick={handleSchedule}
+                  className="w-full bg-primary text-black font-bold py-3 rounded-xl text-sm tracking-wider hover:shadow-lg hover:shadow-primary/40 transition-all"
+                >
+                  📅 Save Schedule
+                </button>
+              </div>
+
+              <div className="px-6 py-3 border-t border-white/10 text-center">
+                <p className="text-gray-500 text-xs">
+                  You'll receive a reminder when it's time to watch.
+                </p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Paywall Modal ── */}
+      <PaywallModal
+        isOpen={showPaywall}
+        onClose={() => setShowPaywall(false)}
+        triggerReason={paywallReason}
+      />
     </div>
   );
 }

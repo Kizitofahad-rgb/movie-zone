@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiDownload, FiX, FiShare } from 'react-icons/fi'; // 👈 Added FiShare
+import { FiDownload, FiX, FiShare } from 'react-icons/fi';
 import { MdLocalMovies } from 'react-icons/md';
 import { useInstallPrompt } from '../hooks/useInstallPrompt';
 
@@ -10,27 +10,22 @@ export default function InstallPrompt() {
   const [isDismissed, setIsDismissed] = useState(false);
 
   useEffect(() => {
-    // Check if already dismissed
     if (localStorage.getItem('mz_install_dismissed')) return;
-
-    // Check if already installed
     if (!canInstall) return;
 
-    // Show prompt after 3 seconds
     const timer = setTimeout(() => setShowPrompt(true), 3000);
     return () => clearTimeout(timer);
   }, [canInstall]);
 
   const handleInstall = async () => {
     if (isIOS) {
-      // iOS: just close the prompt – user must use Share → Add to Home Screen
       setShowPrompt(false);
-      // Show a toast with instructions (handled by Navbar)
       return;
     }
     const result = await promptInstall();
     if (result.success) {
       setShowPrompt(false);
+      localStorage.setItem('mz_install_dismissed', 'true');
     }
   };
 
@@ -40,7 +35,6 @@ export default function InstallPrompt() {
     localStorage.setItem('mz_install_dismissed', 'true');
   };
 
-  // ── iOS-specific warning if not in Safari ──
   if (isIOS && !isSafari) {
     return (
       <AnimatePresence>
@@ -109,7 +103,6 @@ export default function InstallPrompt() {
                     </span>
                     , then select <strong className="text-white">"Add to Home Screen"</strong>.
                   </p>
-                  {/* Animated arrow pointing to share button */}
                   <motion.div
                     initial={{ x: -10, opacity: 0 }}
                     animate={{ x: 10, opacity: 1 }}

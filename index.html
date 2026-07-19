@@ -13,6 +13,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Movie Zone" />
+    <meta name="mobile-web-app-capable" content="yes" /> 
 
     <!-- Apple Touch Icons (fixed paths) -->
     <link rel="apple-touch-icon" href="/icons/152x152.png" />
@@ -49,30 +50,52 @@
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
 
-    <!-- Register Service Worker -->
+        <!-- Register Service Worker with update trigger -->
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
           navigator.serviceWorker
             .register('/sw.js')
-            .then((reg) => console.log('✅ SW registered:', reg.scope))
+            .then((reg) => {
+              console.log('✅ SW registered:', reg.scope);
+              
+              // ── Check for updates every 60 seconds ──
+              setInterval(() => {
+                reg.update();
+              }, 60000);
+            })
             .catch((err) => console.log('❌ SW failed:', err));
         });
       }
     </script>
 
-    <!-- Popup blocker for embedded iframes -->
+    <!-- Aggressive Popup Blocker for Embedded Iframes -->
     <script>
-      // Intercept popup attempts from embedded iframes
-      const originalOpen = window.open;
-      window.open = function(url, ...args) {
-        // Only block if it came from an iframe (not our own app)
-        if (document.activeElement?.tagName === 'IFRAME') {
-          console.log('🛑 Blocked popup from iframe:', url);
-          return null;
-        }
-        return originalOpen.apply(this, [url, ...args]);
-      };
+      (function() {
+        // Block window.open from iframes
+        const originalOpen = window.open;
+        window.open = function(url, name, features) {
+          try {
+            if (window.self !== window.top) {
+              console.log('🛑 Blocked popup from iframe:', url);
+              return null;
+            }
+          } catch (e) {
+            console.log('🛑 Blocked popup from cross-origin iframe:', url);
+            return null;
+          }
+          return originalOpen.apply(this, arguments);
+        };
+
+        // Remove meta refresh redirects
+        document.addEventListener('DOMContentLoaded', function() {
+          const metaRefresh = document.querySelector('meta[http-equiv="refresh"]');
+          if (metaRefresh) {
+            console.log('🛑 Blocked meta refresh redirect');
+            metaRefresh.remove();
+          }
+        });
+      })();
     </script>
   </body>
 </html>

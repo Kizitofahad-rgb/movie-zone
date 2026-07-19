@@ -11,6 +11,7 @@ import {
   getPopularSeries,
   getAnimations,
   getAfricanMovies,
+  getNatureDocumentaries, // 👈 NEW
 } from '../services/tmdb';
 
 // Mood picker data 
@@ -41,7 +42,7 @@ export default function Home() {
       {/* HERO */}
       <HeroSection />
 
-      {/* MOOD PICKER — Unique feature MovieBox doesn't have! */}
+      {/* MOOD PICKER */}
       <motion.section
         initial={{ opacity: 0, y: 40 }}
         whileInView={{ opacity: 1, y: 0 }}
@@ -81,7 +82,7 @@ export default function Home() {
         </div>
       </motion.section>
 
-      {/* STATS BANNER — Social proof */}
+      {/* STATS BANNER */}
       <motion.div
         initial={{ opacity: 0 }}
         whileInView={{ opacity: 1 }}
@@ -129,6 +130,11 @@ export default function Home() {
           title="African Spotlight"
           emoji="🌍"
           fetchFn={() => getAfricanMovies('ALL')}
+        />
+        <MovieRow
+          title="Wild Zone — Nature Documentaries" // 👈 NEW
+          emoji="🦁"
+          fetchFn={getNatureDocumentaries}
         />
         <MovieRow
           title="Now Playing in Cinemas"

@@ -137,4 +137,59 @@ export const getAfricanSeries = async (country = 'ALL', page = 1) => {
   });
 };
 
+// ══════════════════════════════════════
+// 🦁 DOCUMENTARIES — Wild Zone
+// ══════════════════════════════════════
+
+export const getNatureDocumentaries = (page = 1) =>
+  tmdb.get('/discover/tv', {
+    params: {
+      with_genres: 99,
+      with_keywords: '183121|3805|11201|9882', // nature|wildlife|animals|documentary
+      sort_by: 'popularity.desc',
+      page,
+    },
+  });
+
+export const getAnimalMovieDocs = (page = 1) =>
+  tmdb.get('/discover/movie', {
+    params: {
+      with_genres: 99,
+      with_keywords: '183121|3805|11201', // nature|wildlife|animals
+      sort_by: 'vote_average.desc',
+      'vote_count.gte': 50,
+      page,
+    },
+  });
+
+export const getBBCDocs = (page = 1) =>
+  tmdb.get('/search/tv', {
+    params: { query: 'BBC Earth', page },
+  });
+
+export const getPlanetEarthSeries = () =>
+  tmdb.get('/search/tv', {
+    params: { query: 'Planet Earth' },
+  });
+
+export const getOceanDocs = (page = 1) =>
+  tmdb.get('/discover/tv', {
+    params: {
+      with_genres: 99,
+      with_keywords: '9436', // ocean
+      sort_by: 'popularity.desc',
+      page,
+    },
+  });
+
+export const getBirdsDocs = (page = 1) =>
+  tmdb.get('/discover/tv', {
+    params: {
+      with_genres: 99,
+      with_keywords: '1769', // birds
+      sort_by: 'popularity.desc',
+      page,
+    },
+  });
+  
 export default tmdb;

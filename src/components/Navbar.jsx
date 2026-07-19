@@ -89,12 +89,14 @@ export default function Navbar() {
     }
   };
 
+  // ── UPDATED navLinks ──
   const navLinks = [
     { name: 'Home', path: '/home' },
     { name: 'Movies', path: '/movies' },
     { name: 'Series', path: '/series' },
     { name: 'Animations', path: '/animations' },
     { name: '🌍 African', path: '/african' },
+    { name: '🦁 Wild Zone', path: '/documentaries' }, // 👈 NEW
   ];
 
   // Logo link: logged-in users go to /home, non-logged-in go to /

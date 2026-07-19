@@ -11,11 +11,9 @@ export function useInstallPrompt() {
     const standalone = window.matchMedia('(display-mode: standalone)').matches;
     setIsStandalone(standalone);
 
-    // iOS detection
     const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
     setIsIOS(ios);
 
-    // Safari detection (iOS only)
     const safari = /safari/i.test(navigator.userAgent) && !/crios/i.test(navigator.userAgent) && !/fxios/i.test(navigator.userAgent);
     setIsSafari(safari);
 
@@ -27,18 +25,15 @@ export function useInstallPrompt() {
     }
 
     if (ios) {
-      // iOS: only show install if using Safari
       if (safari) {
         setCanInstall(true);
       } else {
-        // iOS but not Safari – show a warning
         setCanInstall(false);
         console.warn('⚠️ Please open Movie Zone in Safari to install on iPhone.');
       }
       return;
     }
 
-    // Android/Desktop: listen for beforeinstallprompt
     const handler = (e) => {
       e.preventDefault();
       console.log('✅ beforeinstallprompt event fired!');
@@ -47,7 +42,6 @@ export function useInstallPrompt() {
     };
     window.addEventListener('beforeinstallprompt', handler);
 
-    // If the event doesn't fire within 5 seconds, still show the button (manual install)
     const timeout = setTimeout(() => {
       if (!deferredPrompt) {
         console.warn('⚠️ beforeinstallprompt did not fire. PWA might not be fully installed.');
@@ -63,10 +57,10 @@ export function useInstallPrompt() {
 
   const promptInstall = async () => {
     if (isIOS) {
-      // iOS doesn't support programmatic install – return iOS flag
       return { success: false, isIOS: true, isSafari };
     }
     if (deferredPrompt) {
+      // ── THIS IS THE KEY FIX: call prompt() ──
       deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
       if (outcome === 'accepted') {
@@ -76,7 +70,6 @@ export function useInstallPrompt() {
       }
       return { success: false, declined: true };
     }
-    // No deferredPrompt – provide manual instructions
     return { success: false, noPrompt: true, isAndroid: !isIOS };
   };
 
