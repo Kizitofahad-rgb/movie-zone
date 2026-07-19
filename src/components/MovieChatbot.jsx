@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiX, FiSend, FiMinus, FiPlus } from 'react-icons/fi';
+import { FiX, FiSend, FiMinus } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 
-const SYSTEM_CONTEXT = `You are Movie Zone AI, a friendly movie guide for Movie Zone — Uganda's streaming platform. 
+// ── DEEPSEEK SYSTEM PROMPT ──
+const SYSTEM_PROMPT = `You are Movie Zone AI, a friendly movie guide for Movie Zone — Uganda's streaming platform. 
 
 Key facts about Movie Zone:
 - Has Movies, Series, Animations, African Zone sections
@@ -41,22 +42,23 @@ export default function MovieChatbot() {
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  // ── Use DeepSeek API key ──
+  const apiKey = import.meta.env.VITE_DEEPSEEK_API_KEY;
   const [apiKeyMissing, setApiKeyMissing] = useState(false);
 
   useEffect(() => {
     if (!apiKey) {
       setApiKeyMissing(true);
       toast.warning('AI chatbot not configured', { icon: '🤖' });
+    } else {
+      console.log('✅ DeepSeek API key found (length:', apiKey.length, ')');
     }
   }, [apiKey]);
 
-  // Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Welcome message on first open
   useEffect(() => {
     if (isOpen && messages.length === 0) {
       setMessages([
@@ -77,10 +79,8 @@ export default function MovieChatbot() {
       return;
     }
 
-    // Hide quick prompts after first message
     if (showQuickPrompts) setShowQuickPrompts(false);
 
-    // Add user message
     const userMsg = {
       role: 'user',
       content: messageText.trim(),
@@ -90,46 +90,54 @@ export default function MovieChatbot() {
     setInput('');
     setIsLoading(true);
 
-    // Build conversation context (last 4 pairs)
-    const contextMessages = messages.slice(-8).map((m) => ({
-      role: m.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: m.content }],
+    // ── Build messages for DeepSeek API ──
+    const history = messages.slice(-8).map((m) => ({
+      role: m.role === 'assistant' ? 'assistant' : 'user',
+      content: m.content,
     }));
 
-    const fullPrompt =
-      SYSTEM_CONTEXT +
-      '\n\n' +
-      contextMessages.map((m) => `${m.role}: ${m.parts[0].text}`).join('\n') +
-      `\nUser: ${messageText.trim()}`;
+    const fullMessages = [
+      { role: 'system', content: SYSTEM_PROMPT },
+      ...history,
+      { role: 'user', content: messageText.trim() },
+    ];
 
     try {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: fullPrompt }] }],
-            generationConfig: {
-              temperature: 0.7,
-              maxOutputTokens: 250,
-            },
-          }),
-        }
-      );
+      console.log('📤 Sending request to DeepSeek API...');
+
+      const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: 'deepseek-chat',
+          messages: fullMessages,
+          temperature: 0.7,
+          max_tokens: 250,
+        }),
+      });
+
+      const responseData = await response.json();
+      console.log('📥 DeepSeek API response status:', response.status);
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorMsg = responseData.error?.message || `HTTP ${response.status}`;
+        console.error('❌ API error:', errorMsg);
         if (response.status === 429) {
-          toast.error('Too many requests. Wait a moment!');
+          toast.error('Rate limit reached. Please wait a moment.');
+        } else if (response.status === 401) {
+          toast.error('Invalid API key. Check your DeepSeek key.');
         } else {
-          toast.error(errorData.error?.message || 'AI unavailable. Try again!');
+          toast.error(`AI error: ${errorMsg}`);
         }
-        throw new Error(errorData.error?.message || 'API error');
+        throw new Error(errorMsg);
       }
 
-      const data = await response.json();
-      const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Sorry, I could not generate a response.';
+      const aiText = responseData.choices?.[0]?.message?.content || 'Sorry, I could not generate a response.';
+      console.log('✅ AI response:', aiText);
+
       const aiMsg = {
         role: 'assistant',
         content: aiText.trim(),
@@ -137,18 +145,23 @@ export default function MovieChatbot() {
       };
       setMessages((prev) => [...prev, aiMsg]);
     } catch (error) {
-      console.error('Gemini API error:', error);
+      console.error('❌ Error in chat:', error);
+      let fallbackMsg = "Sorry, I'm having trouble right now. Try asking again in a moment! 🔄";
+      if (error.message.includes('API key') || error.message.includes('401')) {
+        fallbackMsg = "⚠️ The AI service is not properly configured. Please contact support.";
+      } else if (error.message.includes('quota') || error.message.includes('429')) {
+        fallbackMsg = "⏳ The AI is busy right now. Please try again later.";
+      }
       setMessages((prev) => [
         ...prev,
         {
           role: 'assistant',
-          content: "Sorry, I'm having trouble right now. Try asking again in a moment! 🔄",
+          content: fallbackMsg,
           timestamp: new Date(),
         },
       ]);
     } finally {
       setIsLoading(false);
-      // Focus input after response
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   };
@@ -180,7 +193,6 @@ export default function MovieChatbot() {
             AI
           </span>
         )}
-        {/* Pulsing ring */}
         {!isOpen && (
           <motion.span
             animate={{ scale: [1, 1.15, 1] }}
@@ -234,8 +246,8 @@ export default function MovieChatbot() {
                     <div
                       className={`max-w-[85%] px-4 py-2.5 rounded-2xl ${
                         isUser
-                          ? 'bg-primary/15 border border-primary/25 rounded-tr-sm text-white text-right'
-                          : 'bg-white/5 border border-white/10 rounded-tl-sm text-gray-200'
+                          ? 'bg-primary/15 border border-primary/25 rounded-tr-sm text-emerald-200 text-right'
+                          : 'bg-white/5 border border-white/10 rounded-tl-sm text-emerald-300'
                       } text-sm`}
                     >
                       {msg.content}
@@ -307,7 +319,6 @@ export default function MovieChatbot() {
         )}
       </AnimatePresence>
 
-      {/* Custom scrollbar style – can be added to global CSS but we inline style */}
       <style>{`
         .custom-scrollbar::-webkit-scrollbar {
           width: 4px;
