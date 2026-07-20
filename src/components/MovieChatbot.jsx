@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FiX, FiSend, FiMinus } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
-import toast from 'react-hot-toast';
+import toast from 'react-hot-toast'; // For notifications
 
 const SYSTEM_CONTEXT = `You are Movie Zone AI, a friendly movie guide for Movie Zone — Uganda's streaming platform. 
 
@@ -29,7 +29,7 @@ const QUICK_PROMPTS = [
   { label: 'Best Nollywood movies 🎭', prompt: 'Best Nollywood movies' },
   { label: 'Top action movies 💥', prompt: 'Top action movies' },
   { label: 'Family friendly series 👨‍👩‍👧', prompt: 'Family friendly series' },
-];
+]; // Quick prompts for user convenience
 
 export default function MovieChatbot() {
   const { user, getDisplayName } = useAuth();
@@ -51,7 +51,7 @@ export default function MovieChatbot() {
     } else {
       console.log('✅ Gemini API key found (length:', apiKey.length, ')');
     }
-  }, [apiKey]);
+  }, [apiKey]); // Check for API key on mount
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -333,7 +333,7 @@ export default function MovieChatbot() {
           background: transparent;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #00d4ff;
+          background: #00d4ff; 
           border-radius: 10px;
         }
       `}</style>
