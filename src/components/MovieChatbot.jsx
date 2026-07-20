@@ -75,7 +75,7 @@ export default function MovieChatbot() {
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
         const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${apiKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -196,7 +196,7 @@ export default function MovieChatbot() {
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         onClick={togglePanel}
-        className="fixed bottom-6 right-6 z-80 w-14 h-14 rounded-full bg-primary shadow-lg shadow-primary/50 flex items-center justify-center text-2xl transition-all hover:shadow-primary/70"
+        className="fixed bottom-6 right-6 z-[80] w-14 h-14 rounded-full bg-primary shadow-lg shadow-primary/50 flex items-center justify-center text-2xl transition-all hover:shadow-primary/70"
         style={{ boxShadow: '0 0 30px rgba(0,212,255,0.4)' }}
       >
         {isOpen ? <FiX className="text-black text-2xl" /> : <span>🎬</span>}
@@ -221,7 +221,7 @@ export default function MovieChatbot() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ duration: 0.2 }}
-            className="fixed bottom-24 right-6 w-80 sm:w-96 h-[500px] glass rounded-2xl border border-primary/30 shadow-2xl shadow-primary/20 flex flex-col overflow-hidden z-80"
+            className="fixed bottom-24 right-6 w-80 sm:w-96 h-[500px] glass rounded-2xl border border-primary/30 shadow-2xl shadow-primary/20 flex flex-col overflow-hidden z-[80]"
           >
             <div className="flex items-center justify-between p-4 border-b border-primary/20 bg-gradient-to-r from-primary/10 to-transparent">
               <div className="flex items-center gap-2">

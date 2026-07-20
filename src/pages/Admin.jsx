@@ -5,6 +5,7 @@ import { FiUsers, FiCreditCard, FiClock, FiMessageSquare, FiTrash2 } from 'react
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../services/supabase';
 import toast from 'react-hot-toast';
+import SourceStatus from '../components/SourceStatus';
 
 const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL || 'kizitofahad665@gmail.com';
 
@@ -147,6 +148,8 @@ export default function Admin() {
           </h1>
           <p className="text-gray-400 text-sm mt-2">Manage your platform — users, subscriptions, and comments.</p>
         </motion.div>
+
+        <SourceStatus />
 
         {/* ─── Stats Grid ─── */}
         <motion.div

@@ -1,0 +1,55 @@
+name: Test video sources
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  test-sources:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Test video sources
+        id: source_check
+        run: node scripts/testSources.mjs
+      - name: Create issue for dead sources
+        if: steps.source_check.outputs.dead_count != '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = JSON.parse(fs.readFileSync('scripts/source-report.json', 'utf8'));
+            const deadSources = report.sources.filter((source) => source.status === 'dead');
+            const date = report.lastChecked.slice(0, 10);
+            const body = [
+              'The scheduled Movie Zone source monitor detected unavailable video providers.',
+              '', `Checked: ${report.lastChecked}`, '', '```json',
+              JSON.stringify({ ...report, sources: deadSources }, null, 2), '```',
+            ].join('\n');
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `⚠️ Dead video sources detected - ${date}`,
+              body,
+            });
+      - name: Commit updated source report
+        run: |
+          if git diff --quiet -- scripts/source-report.json; then
+            echo "Source report is unchanged."
+            exit 0
+          fi
+          git config user.name "movie-zone-source-monitor[bot]"
+          git config user.email "movie-zone-source-monitor[bot]@users.noreply.github.com"
+          git add scripts/source-report.json
+          git commit -m "chore: update video source report"
+          git push

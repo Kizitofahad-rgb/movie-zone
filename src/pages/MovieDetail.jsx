@@ -23,7 +23,8 @@ import { useSubscription } from '../context/SubscriptionContext';
 import { supabase } from '../services/supabase';
 import toast from 'react-hot-toast';
 
-// ── UPDATED SOURCES — FRESH, RELIABLE, FAST ──
+// ── AI SOURCE AGENT MANAGED — FRESH, RELIABLE, FAST ──
+// The scheduled Source Agent checks these URL templates weekly and removes failed providers.
 const getSources = (type, id, season = 1, episode = 1) => {
   if (type === 'tv') {
     return [
@@ -91,26 +92,7 @@ const getSources = (type, id, season = 1, episode = 1) => {
       sandboxed: false,
     },
   ];
-};;
-
-// ── Helper to generate download URLs (fzmovies style) ──
-const getDownloadUrls = (title, year, id) => {
-  // These are example patterns - fzmovies has its own structure
-  // For now we use a search approach that keeps users inside the app
-  const searchQuery = encodeURIComponent(`${title} ${year}`);
-  return {
-    fzmovies: `https://fzmovies.com/search?q=${searchQuery}`,
-    yts: `https://yts.mx/movies/${title.toLowerCase().replace(/[\s:]/g, '-')}-${year}`,
-  };
 };
-
-// ── Quality options with file sizes (like MovieBox) ──
-const qualityOptions = [
-  { label: '360P', size: '~292 MB', color: 'text-gray-400', icon: '📱' },
-  { label: '480P', size: '~356 MB', color: 'text-blue-400', icon: '📺' },
-  { label: '1080P', size: '~1.04 GB', color: 'text-primary', icon: '🎬' },
-  { label: '4K', size: '~4.2 GB', color: 'text-gold', icon: '🌟' },
-];
 
 export default function MovieDetail() {
   const { id } = useParams();
@@ -139,14 +121,10 @@ export default function MovieDetail() {
 
   const [inWatchlist, setInWatchlist] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
-  const [showDownload, setShowDownload] = useState(false);
 
   // Schedule state
   const [showSchedule, setShowSchedule] = useState(false);
   const [scheduleDateTime, setScheduleDateTime] = useState('');
-
-  // ── New: Download quality selection ──
-  const [selectedQuality, setSelectedQuality] = useState('1080P');
 
   // Paywall state
   const [showPaywall, setShowPaywall] = useState(false);
@@ -309,29 +287,6 @@ export default function MovieDetail() {
     }
   };
 
-  // ── Download handler (keeps user inside the app) ──
-  const handleDownload = (quality) => {
-    const downloadUrl = getDownloadUrls(title, year, id);
-    // Open in a new window/tab but keep user in app by using a hidden iframe approach
-    // For now, we use a simple approach that opens a new window but we keep the app open
-    // In a real implementation, this would trigger a download via backend proxy
-    
-    // Show a toast with a "Downloading..." message
-    toast.loading(`Starting ${quality} download...`, {
-      duration: 3000,
-    });
-    
-    // Simulate download start - in reality, this would trigger a download
-    // We use a fetch to get the file without redirecting
-    setTimeout(() => {
-      toast.success(`✅ ${quality} download started!`, {
-        duration: 3000,
-      });
-      // Open fzmovies search in new tab but keep app open
-      window.open(`https://fzmovies.com/search?q=${encodeURIComponent(title)}`, '_blank');
-    }, 1500);
-  };
-
   if (loading || subLoading) {
     return (
       <div className="min-h-screen bg-dark flex items-center justify-center">
@@ -473,15 +428,6 @@ export default function MovieDetail() {
                   🎬 Watch Trailer
                 </motion.button>
               )}
-
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setShowDownload(true)}
-                className="flex items-center gap-3 glass text-white font-semibold px-6 py-3.5 rounded-full text-sm border border-white/20 hover:border-green-400/60"
-              >
-                <FiDownload /> Download
-              </motion.button>
 
               <motion.button
                 whileHover={{ scale: 1.05 }}
@@ -1090,125 +1036,6 @@ export default function MovieDetail() {
                   Watching inside Movie Zone ✅
                 </p>
                 <p className="text-primary text-xs font-bold">MOVIE ZONE</p>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ─── DOWNLOAD MODAL (UPDATED - MovieBox/VidMate style) ─── */}
-      <AnimatePresence>
-        {showDownload && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-xl flex items-center justify-center p-4"
-            onClick={() => setShowDownload(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.8, opacity: 0, y: 40 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.8, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md glass rounded-2xl border border-white/10 overflow-hidden shadow-2xl"
-            >
-              {/* ── Header ── */}
-              <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
-                <div className="flex items-center gap-3">
-                  <FiDownload className="text-primary text-xl" />
-                  <span className="text-white font-bold">Download</span>
-                </div>
-                <button
-                  onClick={() => setShowDownload(false)}
-                  className="w-8 h-8 rounded-full bg-white/10 hover:bg-red-500 flex items-center justify-center text-white transition-colors"
-                >
-                  <FiX />
-                </button>
-              </div>
-
-              {/* ── Movie Info ── */}
-              <div className="px-6 py-4 border-b border-white/10">
-                <div className="flex items-center gap-4">
-                  <img
-                    src={`${IMAGE_BASE}${details.poster_path}`}
-                    alt={title}
-                    className="w-14 h-20 object-cover rounded-lg"
-                  />
-                  <div>
-                    <p className="text-white font-bold">{title}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-gray-400 text-xs">{year}</span>
-                      <span className="text-gray-600 text-xs">•</span>
-                      <span className="text-gray-400 text-xs">{runtime}</span>
-                    </div>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {genres.slice(0, 3).map((g) => (
-                        <span key={g.id} className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/30">
-                          {g.name}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* ── Quality Selection (like MovieBox/VidMate) ── */}
-              <div className="px-6 py-4">
-                <p className="text-gray-400 text-xs mb-3">Select Quality</p>
-                <div className="space-y-2">
-                  {qualityOptions.map((quality) => (
-                    <motion.button
-                      key={quality.label}
-                      whileHover={{ scale: 1.02, x: 4 }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={() => {
-                        setSelectedQuality(quality.label);
-                        handleDownload(quality.label);
-                      }}
-                      className={`w-full flex items-center justify-between bg-white/5 hover:bg-white/10 border rounded-xl px-4 py-3 transition-all ${
-                        selectedQuality === quality.label
-                          ? 'border-primary/60 bg-primary/10'
-                          : 'border-white/10 hover:border-primary/40'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="text-xl">{quality.icon}</span>
-                        <div className="text-left">
-                          <p className={`font-bold text-sm ${quality.color}`}>
-                            {quality.label}
-                          </p>
-                          <p className="text-gray-500 text-xs">{quality.size}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-500">MP4</span>
-                        <FiDownload className="text-gray-400 text-sm" />
-                      </div>
-                    </motion.button>
-                  ))}
-                </div>
-              </div>
-
-              {/* ── Download button (always visible) ── */}
-              <div className="px-6 pb-4">
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => handleDownload(selectedQuality)}
-                  className="w-full py-3 bg-primary text-black font-bold rounded-xl text-sm tracking-wider hover:shadow-lg hover:shadow-primary/40 transition-all flex items-center justify-center gap-2"
-                >
-                  <FiDownload className="text-lg" />
-                  Download {selectedQuality}
-                </motion.button>
-              </div>
-
-              {/* ── Disclaimer ── */}
-              <div className="px-6 py-3 border-t border-white/10">
-                <p className="text-gray-500 text-[10px] text-center leading-relaxed">
-                  ⚠️ Movie Zone does not host any files. All downloads lead to third-party sites. 
-                  Files are for personal use only. Content owners can request removal.
-                </p>
               </div>
             </motion.div>
           </motion.div>
