@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
+import { Analytics } from '@vercel/analytics/react';
 import { AuthProvider } from './context/AuthContext';
 import { SubscriptionProvider } from './context/SubscriptionContext';
 import { useNotifications } from './hooks/useNotifications';
@@ -73,6 +74,7 @@ function App() {
             </Routes>
           </Suspense>
           <Footer />
+          <Analytics />
         </Router>
       </SubscriptionProvider>
     </AuthProvider>
