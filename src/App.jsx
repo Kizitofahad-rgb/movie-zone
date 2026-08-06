@@ -25,6 +25,7 @@ const Search = lazy(() => import('./pages/Search'));
 const Login = lazy(() => import('./pages/Login'));
 const Profile = lazy(() => import('./pages/Profile'));
 const Admin = lazy(() => import('./pages/Admin'));
+const AdminPayments = lazy(() => import('./pages/AdminPayments'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 const TermsOfService = lazy(() => import('./pages/TermsOfService'));
 
@@ -68,6 +69,7 @@ function App() {
               <Route path="/login" element={<Login />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/admin" element={<Admin />} />
+              <Route path="/admin/payments" element={<AdminPayments />} />
               <Route path="/privacy" element={<PrivacyPolicy />} />
               <Route path="/terms" element={<TermsOfService />} />
             </Routes>

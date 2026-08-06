@@ -29,23 +29,23 @@ const getSources = (type, id, season = 1, episode = 1) => {
   if (type === 'tv') {
     return [
       {
-        name: 'Videasy',
-        url: `https://player.videasy.net/tv/${id}/${season}/${episode}?color=00d4ff&nextEpisode=true&autoplay=true`,
-        sandboxed: false,
-      },
-      {
-        name: 'VidFast',
-        url: `https://vidfast.pro/tv/${id}/${season}/${episode}?autoPlay=true&theme=00d4ff`,
-        sandboxed: false,
-      },
-      {
-        name: 'PStream',
-        url: `https://iframe.pstream.org/embed/tmdb/tv-${id}-${season}-${episode}`,
-        sandboxed: false,
-      },
-      {
         name: 'VidLink',
-        url: `https://vidlink.pro/tv/${id}/${season}/${episode}?primaryColor=00d4ff&secondaryColor=ffd700&player=jw&autoplay=true&nextbutton=true`,
+        url: `https://vidlink.pro/tv/${id}/${season}/${episode}?primaryColor=00d4ff&secondaryColor=ffd700&iconColor=ffffff&player=jw&autoplay=true&nextbutton=true&title=true&poster=true`,
+        sandboxed: false,
+      },
+      {
+        name: 'VidLink 2',
+        url: `https://vidlink.pro/tv/${id}/${season}/${episode}?primaryColor=00d4ff&secondaryColor=ffd700&player=default&autoplay=true&nextbutton=true`,
+        sandboxed: false,
+      },
+      {
+        name: 'VidSrc ICU',
+        url: `https://vidsrc.icu/embed/tv/${id}/${season}/${episode}`,
+        sandboxed: false,
+      },
+      {
+        name: 'VidSrc RIP',
+        url: `https://vidsrc.rip/embed/tv?tmdb=${id}&season=${season}&episode=${episode}`,
         sandboxed: false,
       },
       {
@@ -62,23 +62,23 @@ const getSources = (type, id, season = 1, episode = 1) => {
   }
   return [
     {
-      name: 'Videasy',
-      url: `https://player.videasy.net/movie/${id}?color=00d4ff&autoplay=true`,
-      sandboxed: false,
-    },
-    {
-      name: 'VidFast',
-      url: `https://vidfast.pro/movie/${id}?autoPlay=true&theme=00d4ff`,
-      sandboxed: false,
-    },
-    {
-      name: 'PStream',
-      url: `https://iframe.pstream.org/embed/tmdb/movie-${id}`,
-      sandboxed: false,
-    },
-    {
       name: 'VidLink',
-      url: `https://vidlink.pro/movie/${id}?primaryColor=00d4ff&secondaryColor=ffd700&player=jw&autoplay=true`,
+      url: `https://vidlink.pro/movie/${id}?primaryColor=00d4ff&secondaryColor=ffd700&iconColor=ffffff&player=jw&autoplay=true&title=true&poster=true`,
+      sandboxed: false,
+    },
+    {
+      name: 'VidLink 2',
+      url: `https://vidlink.pro/movie/${id}?primaryColor=00d4ff&secondaryColor=ffd700&player=default&autoplay=true`,
+      sandboxed: false,
+    },
+    {
+      name: 'VidSrc ICU',
+      url: `https://vidsrc.icu/embed/movie/${id}`,
+      sandboxed: false,
+    },
+    {
+      name: 'VidSrc RIP',
+      url: `https://vidsrc.rip/embed/movie?tmdb=${id}`,
       sandboxed: false,
     },
     {
