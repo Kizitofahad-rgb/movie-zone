@@ -2,6 +2,14 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../services/supabase';
 import { useAuth } from './AuthContext';
 
+// ── FREE MODE FLAG ──
+// Set to true to give all signed-in users
+// full access. Set to false to enforce
+// subscription/trial logic.
+// Keep all subscription logic below intact —
+// just flip this flag when ready to monetize.
+const FREE_MODE = true;
+
 const SubscriptionContext = createContext();
 
 export const SubscriptionProvider = ({ children }) => {
@@ -170,6 +178,9 @@ export const SubscriptionProvider = ({ children }) => {
 
   // Computed values
   const isActive = () => {
+    // FREE_MODE: grant access to all signed-in users
+    if (FREE_MODE && user) return true;
+    // Normal subscription check (used when FREE_MODE = false)
     if (!subscription) return false;
     const now = new Date();
     const expiresAt = new Date(subscription.expires_at);
