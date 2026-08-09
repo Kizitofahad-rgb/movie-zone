@@ -16,6 +16,7 @@
     "aetherly-embed-guard": "^0.1.0",
     "axios": "^1.16.1",
     "framer-motion": "^12.40.0",
+    "hls.js": "^1.6.17",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-hot-toast": "^2.6.0",
