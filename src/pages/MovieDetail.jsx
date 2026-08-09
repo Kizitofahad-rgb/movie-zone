@@ -23,74 +23,24 @@ import { useSubscription } from '../context/SubscriptionContext';
 import { supabase } from '../services/supabase';
 import toast from 'react-hot-toast';
 
-// ── AI SOURCE AGENT MANAGED — FRESH, RELIABLE, FAST ──
-// The scheduled Source Agent checks these URL templates weekly and removes failed providers.
-const getSources = (type, id, season = 1, episode = 1) => {
+const SOURCES = (type, id, season = 1, episode = 1) => {
   if (type === 'tv') {
     return [
-      {
-        name: 'VidLink',
-        url: `https://vidlink.pro/tv/${id}/${season}/${episode}?primaryColor=00d4ff&secondaryColor=ffd700&iconColor=ffffff&player=jw&autoplay=true&nextbutton=true&title=true&poster=true`,
-        sandboxed: false,
-      },
-      {
-        name: 'VidLink 2',
-        url: `https://vidlink.pro/tv/${id}/${season}/${episode}?primaryColor=00d4ff&secondaryColor=ffd700&player=default&autoplay=true&nextbutton=true`,
-        sandboxed: false,
-      },
-      {
-        name: 'VidSrc ICU',
-        url: `https://vidsrc.icu/embed/tv/${id}/${season}/${episode}`,
-        sandboxed: false,
-      },
-      {
-        name: 'VidSrc RIP',
-        url: `https://vidsrc.rip/embed/tv?tmdb=${id}&season=${season}&episode=${episode}`,
-        sandboxed: false,
-      },
-      {
-        name: 'AutoEmbed',
-        url: `https://player.autoembed.cc/embed/tv/${id}/${season}/${episode}`,
-        sandboxed: false,
-      },
-      {
-        name: 'MultiEmbed',
-        url: `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${season}&e=${episode}`,
-        sandboxed: false,
-      },
+      { name: 'VidSrc', url: `https://vidsrc.hair/embed/tv/${id}/${season}/${episode}?autoplay=true` },
+      { name: 'YapGrid', url: `https://yapgrid.com/embed/tv/${id}?season=${season}&episode=${episode}` },
+      { name: 'VidCore', url: `https://vidcore.org/embed/tv/${id}/${season}/${episode}` },
+      { name: 'VidLink', url: `https://vidlink.pro/tv/${id}/${season}/${episode}?primaryColor=00d4ff&secondaryColor=ffd700&player=jw&autoplay=true&nextbutton=true` },
+      { name: 'MultiEmbed', url: `https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1&s=${season}&e=${episode}` },
+      { name: 'VidSrc ICU', url: `https://vidsrc.icu/embed/tv/${id}/${season}/${episode}` },
     ];
   }
   return [
-    {
-      name: 'VidLink',
-      url: `https://vidlink.pro/movie/${id}?primaryColor=00d4ff&secondaryColor=ffd700&iconColor=ffffff&player=jw&autoplay=true&title=true&poster=true`,
-      sandboxed: false,
-    },
-    {
-      name: 'VidLink 2',
-      url: `https://vidlink.pro/movie/${id}?primaryColor=00d4ff&secondaryColor=ffd700&player=default&autoplay=true`,
-      sandboxed: false,
-    },
-    {
-      name: 'VidSrc ICU',
-      url: `https://vidsrc.icu/embed/movie/${id}`,
-      sandboxed: false,
-    },
-    {
-      name: 'VidSrc RIP',
-      url: `https://vidsrc.rip/embed/movie?tmdb=${id}`,
-      sandboxed: false,
-    },
-    {
-      name: 'AutoEmbed',
-      url: `https://player.autoembed.cc/embed/movie/${id}`,
-      sandboxed: false,
-    },
-    {
-      name: 'MultiEmbed',
-      url: `https://multiembed.mov/?video_id=${id}&tmdb=1`,
-      sandboxed: false,
-    },
+    { name: 'VidSrc', url: `https://vidsrc.hair/embed/movie/${id}?autoplay=true` },
+    { name: 'YapGrid', url: `https://yapgrid.com/embed/movie/${id}` },
+    { name: 'VidCore', url: `https://vidcore.org/embed/movie/${id}` },
+    { name: 'VidLink', url: `https://vidlink.pro/movie/${id}?primaryColor=00d4ff&secondaryColor=ffd700&player=jw&autoplay=true` },
+    { name: 'MultiEmbed', url: `https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1` },
+    { name: 'VidSrc ICU', url: `https://vidsrc.icu/embed/movie/${id}` },
   ];
 };
 
@@ -109,7 +59,13 @@ export default function MovieDetail() {
   const [showPlayer, setShowPlayer] = useState(false);
   const [showLoader, setShowLoader] = useState(false);
   const [sourceIndex, setSourceIndex] = useState(0);
-  const [sources, setSources] = useState([]);
+
+  // CinePro streaming state
+  const [streams, setStreams] = useState([]); // array of { id, name, url, type, quality }
+  const [currentStream, setCurrentStream] = useState(null);
+  const [streamLoading, setStreamLoading] = useState(false);
+  const [streamError, setStreamError] = useState(null);
+
   const [iframeReady, setIframeReady] = useState(false);
 
   const [showTrailer, setShowTrailer] = useState(false);
@@ -163,13 +119,14 @@ export default function MovieDetail() {
   }, [id]);
 
   useEffect(() => {
-    setSources(
-      getSources(isTV ? 'tv' : 'movie', id, selectedSeason, selectedEpisode)
-    );
+    // clear streams when selection changes; CinePro fetch happens on Watch
+    setStreams([]);
     setSourceIndex(0);
   }, [selectedSeason, selectedEpisode, id]);
 
   const handleWatch = () => {
+    const PAYWALL_ENABLED = false;
+
     if (!user) {
       toast('Please sign in to start your free trial', {
         icon: '🎬',
@@ -178,20 +135,21 @@ export default function MovieDetail() {
       navigate('/login');
       return;
     }
-
-    if (!isActive) {
+    if (PAYWALL_ENABLED && !isActive) {
       setPaywallReason('trial_ended');
       setShowPaywall(true);
       return;
     }
 
-    const newSources = getSources(
+    const sources = SOURCES(
       isTV ? 'tv' : 'movie',
       id,
       selectedSeason,
       selectedEpisode
     );
-    setSources(newSources);
+
+    setStreams(sources);
+    setCurrentStream(sources[0]);
     setSourceIndex(0);
     setIframeReady(false);
     setShowLoader(true);
@@ -204,23 +162,29 @@ export default function MovieDetail() {
   };
 
   const handleTryNextServer = () => {
-    if (sourceIndex < sources.length - 1) {
-      const next = sourceIndex + 1;
-      setIframeReady(false);
-      setShowLoader(true);
-      setSourceIndex(next);
-      setTimeout(() => {
-        setShowLoader(false);
-        setIframeReady(true);
-      }, 4200);
-      toast(`Trying Server ${next + 1}...`, { icon: '🔄' });
-    } else {
-      toast.error('All servers tried. Content may not be available yet.');
-    }
-  };
+  const srcs = streams.length > 0
+    ? streams
+    : SOURCES(
+        isTV ? 'tv' : 'movie',
+        id,
+        selectedSeason,
+        selectedEpisode
+      );
+  if (sourceIndex < srcs.length - 1) {
+    const next = sourceIndex + 1;
+    setSourceIndex(next);
+    setCurrentStream(srcs[next]);
+    setIframeReady(false);
+    setShowLoader(true);
+    toast(`Trying ${srcs[next].name}...`, { icon: '🔄' });
+  } else {
+    toast.error('All servers tried. Please try again later.');
+  }
+};
 
   const switchServer = (i) => {
     setSourceIndex(i);
+    setCurrentStream(streams[i] || null);
     setIframeReady(false);
     setShowLoader(true);
     setTimeout(() => {
@@ -868,17 +832,30 @@ export default function MovieDetail() {
 
                 {/* Server buttons with names */}
                 <div className="flex gap-1 flex-wrap">
-                  {sources.map((source, i) => (
+                  {(streams.length > 0
+                    ? streams
+                    : SOURCES(
+                        isTV ? 'tv' : 'movie',
+                        id,
+                        selectedSeason,
+                        selectedEpisode
+                      )
+                  ).map((source, i) => (
                     <button
                       key={i}
-                      onClick={() => switchServer(i)}
+                      onClick={() => {
+                        setSourceIndex(i);
+                        setCurrentStream(source);
+                        setIframeReady(false);
+                        setShowLoader(true);
+                      }}
                       className={`text-xs px-3 py-1 rounded-full transition-all ${
                         sourceIndex === i
                           ? 'bg-primary text-black font-bold'
                           : 'bg-white/10 text-gray-400 hover:bg-white/20'
                       }`}
                     >
-                      {source.name || `S${i + 1}`}
+                      {source.name}
                     </button>
                   ))}
                 </div>
@@ -947,17 +924,13 @@ export default function MovieDetail() {
               {iframeReady && (
                 <iframe
                   key={`${sourceIndex}-${selectedSeason}-${selectedEpisode}`}
-                  src={sources[sourceIndex]?.url}
+                  src={currentStream?.url}
                   className="w-full h-full"
                   allowFullScreen
-                  allow="autoplay; fullscreen; picture-in-picture; encrypted-media; accelerometer; gyroscope"
+                  allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
                   referrerPolicy="strict-origin"
                   title={title}
                   style={{ border: 'none' }}
-                  onError={() => {
-                    toast.error('Server unavailable — trying next one...');
-                    handleTryNextServer();
-                  }}
                 />
               )}
             </div>
@@ -1133,3 +1106,4 @@ export default function MovieDetail() {
     </div>
   );
 }
+
