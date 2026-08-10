@@ -15,7 +15,7 @@ export default function Landing() {
   const [trending, setTrending] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [currency, setCurrency] = useState('UGX'); // 👈 NEW
+  const [currency, setCurrency] = useState('UGX');
 
   // Redirect logged-in users to /home
   useEffect(() => {
