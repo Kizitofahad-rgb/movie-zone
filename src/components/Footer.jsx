@@ -93,16 +93,34 @@ export default function Footer() {
             © 2025 Movie Zone. For entertainment purposes only. All content belongs to respective owners.
           </p>
           <div className="flex items-center gap-4">
-            {[FiGithub, FiTwitter, FiInstagram].map((Icon, i) => (
-              <motion.a
-                key={i}
-                whileHover={{ scale: 1.2, color: '#00d4ff' }}
-                href="#"
-                className="text-gray-600 hover:text-primary transition-colors"
-              >
-                <Icon className="text-lg" />
-              </motion.a>
-            ))}
+            {/* ─── GitHub ─── */}
+            <motion.a
+              whileHover={{ scale: 1.2, color: '#00d4ff' }}
+              href="#"
+              className="text-gray-600 hover:text-primary transition-colors"
+            >
+              <FiGithub className="text-lg" />
+            </motion.a>
+
+            {/* ─── Twitter ─── */}
+            <motion.a
+              whileHover={{ scale: 1.2, color: '#00d4ff' }}
+              href="#"
+              className="text-gray-600 hover:text-primary transition-colors"
+            >
+              <FiTwitter className="text-lg" />
+            </motion.a>
+
+            {/* ─── Instagram ─── 👇 UPDATED WITH YOUR USERNAME ─── */}
+            <motion.a
+              whileHover={{ scale: 1.2, color: '#00d4ff' }}
+              href="https://instagram.com/moviezone.app"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-gray-600 hover:text-primary transition-colors"
+            >
+              <FiInstagram className="text-lg" />
+            </motion.a>
           </div>
         </div>
       </div>

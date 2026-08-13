@@ -223,9 +223,11 @@ export default function MovieChatbot() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ duration: 0.2 }}
-            className="fixed bottom-24 right-6 w-80 sm:w-96 h-[500px] glass rounded-2xl border border-primary/30 shadow-2xl shadow-primary/20 flex flex-col overflow-hidden z-[80]"
+            // ─── Background changed to solid black ───
+            className="fixed bottom-24 right-6 w-80 sm:w-96 h-[500px] bg-black rounded-2xl border border-primary/30 shadow-2xl shadow-primary/20 flex flex-col overflow-hidden z-[80]"
           >
-            <div className="flex items-center justify-between p-4 border-b border-primary/20 bg-gradient-to-r from-primary/10 to-transparent">
+            {/* Header – removed gradient to keep black background */}
+            <div className="flex items-center justify-between p-4 border-b border-primary/20">
               <div className="flex items-center gap-2">
                 <span className="text-primary text-xl">🎬</span>
                 <div>
@@ -255,6 +257,7 @@ export default function MovieChatbot() {
               </div>
             </div>
 
+            {/* Messages area – inherits black background */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
               {messages.map((msg, idx) => {
                 const isUser = msg.role === 'user';
@@ -320,6 +323,7 @@ export default function MovieChatbot() {
               <div ref={messagesEndRef} />
             </div>
 
+            {/* Input area – no extra background, inherits black */}
             <div className="border-t border-white/10 p-3">
               <div className="flex gap-2 items-center">
                 <input
