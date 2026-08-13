@@ -367,7 +367,7 @@ export default function TermsOfService() {
             <p className="text-gray-400 text-sm">
               Email: <span className="text-primary">kizitofahad665@gmail.com</span>
             </p>
-            <p className="text-gray-500 text-xs mt-1">(Replace with your actual email)</p>
+            <p className="text-gray-500 text-xs mt-1">(kizitofahad665@gmail.com)</p>
           </div>
         </motion.div>
 
