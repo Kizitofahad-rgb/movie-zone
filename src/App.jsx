@@ -7,7 +7,8 @@ import { SubscriptionProvider } from './context/SubscriptionContext';
 import { useNotifications } from './hooks/useNotifications';
 import Navbar from './components/Navbar';
 import InstallPrompt from './components/InstallPrompt';
-import MovieChatbot from './components/MovieChatbot'; // 👈 NEW IMPORT
+import MovieChatbot from './components/MovieChatbot';
+import SocialFAB from './components/SocialFAB'; // 👈 Task 4B FAB
 import Footer from './components/Footer';
 import LoadingFallback from './components/LoadingFallback';
 
@@ -27,6 +28,8 @@ const Login = lazy(() => import('./pages/Login'));
 const Profile = lazy(() => import('./pages/Profile'));
 const Admin = lazy(() => import('./pages/Admin'));
 const AdminPayments = lazy(() => import('./pages/AdminPayments'));
+const Cinemas = lazy(() => import('./pages/Cinemas')); // 👈 Task 3
+const Social = lazy(() => import('./pages/Social'));   // 👈 Task 4
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 const TermsOfService = lazy(() => import('./pages/TermsOfService'));
 
@@ -54,7 +57,8 @@ function App() {
           />
           <Navbar />
           <InstallPrompt />
-          <MovieChatbot /> {/* 👈 ADD THIS LINE */}
+          <MovieChatbot />
+          <SocialFAB /> {/* 👈 Task 4B Global Floating Social Button */}
           <Suspense fallback={<LoadingFallback />}>
             <Routes>
               <Route path="/" element={<Landing />} />
@@ -71,6 +75,8 @@ function App() {
               <Route path="/profile" element={<Profile />} />
               <Route path="/admin" element={<Admin />} />
               <Route path="/admin/payments" element={<AdminPayments />} />
+              <Route path="/cinemas" element={<Cinemas />} />
+              <Route path="/social" element={<Social />} />
               <Route path="/privacy" element={<PrivacyPolicy />} />
               <Route path="/terms" element={<TermsOfService />} />
             </Routes>
