@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiSearch, FiX, FiMenu, FiUser, FiLogOut, FiHeart, FiDownload } from 'react-icons/fi';
+import { FiSearch, FiX, FiMenu, FiUser, FiLogOut, FiHeart, FiDownload, FiUsers } from 'react-icons/fi';
 import { MdLocalMovies } from 'react-icons/md';
 import { useAuth } from '../context/AuthContext';
 import { useInstallPrompt } from '../hooks/useInstallPrompt';
@@ -89,14 +89,15 @@ export default function Navbar() {
     }
   };
 
-  // ── UPDATED navLinks ──
+  // ── UPDATED navLinks with Cinemas and Social ──
   const navLinks = [
     { name: 'Home', path: '/home' },
     { name: 'Movies', path: '/movies' },
     { name: 'Series', path: '/series' },
     { name: 'Animations', path: '/animations' },
     { name: '🌍 African', path: '/african' },
-    { name: '🦁 Wild Zone', path: '/documentaries' }, // 👈 NEW
+    { name: '🎬 Cinemas', path: '/cinemas' }, // 👈 Task 3
+    { name: '👥 Social', path: '/social' },   // 👈 Task 4
   ];
 
   // Logo link: logged-in users go to /home, non-logged-in go to /
@@ -138,7 +139,7 @@ export default function Navbar() {
             </Link>
 
             {/* DESKTOP NAV LINKS */}
-            <div className="hidden md:flex items-center gap-8">
+            <div className="hidden lg:flex items-center gap-6">
               {navLinks.map((link) => (
                 <Link
                   key={link.path}
@@ -150,7 +151,6 @@ export default function Navbar() {
                   }`}
                 >
                   {link.name}
-                  {/* Underline animation */}
                   <span
                     className={`absolute -bottom-1 left-0 h-0.5 bg-primary transition-all duration-300 ${
                       location.pathname === link.path ? 'w-full' : 'w-0 group-hover:w-full'
@@ -168,7 +168,7 @@ export default function Navbar() {
                 {searchOpen ? (
                   <motion.form
                     initial={{ width: 0, opacity: 0 }}
-                    animate={{ width: '220px', opacity: 1 }}
+                    animate={{ width: '200px', opacity: 1 }}
                     exit={{ width: 0, opacity: 0 }}
                     transition={{ duration: 0.3 }}
                     onSubmit={handleSearch}
@@ -198,7 +198,7 @@ export default function Navbar() {
                 )}
               </AnimatePresence>
 
-              {/* ─── INSTALL BUTTON ─── */}
+              {/* INSTALL BUTTON */}
               {showInstallButton && (
                 <motion.button
                   whileHover={{ scale: 1.05 }}
@@ -249,6 +249,12 @@ export default function Navbar() {
                           <FiUser /> My Profile
                         </Link>
                         <Link
+                          to="/profile?tab=social"
+                          className="flex items-center gap-3 px-4 py-3 text-gray-300 hover:text-white hover:bg-white/10 transition-colors"
+                        >
+                          <FiUsers /> Social Profile
+                        </Link>
+                        <Link
                           to="/profile?tab=watchlist"
                           className="flex items-center gap-3 px-4 py-3 text-gray-300 hover:text-white hover:bg-white/10 transition-colors"
                         >
@@ -285,7 +291,7 @@ export default function Navbar() {
               {/* Mobile Menu Button */}
               <button
                 onClick={() => setMenuOpen(!menuOpen)}
-                className="md:hidden p-2 text-gray-300 hover:text-white"
+                className="lg:hidden p-2 text-gray-300 hover:text-white"
               >
                 {menuOpen ? <FiX className="text-xl" /> : <FiMenu className="text-xl" />}
               </button>
@@ -300,7 +306,7 @@ export default function Navbar() {
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              className="md:hidden bg-black/95 backdrop-blur-xl border-t border-white/10 overflow-hidden"
+              className="lg:hidden bg-black/95 backdrop-blur-xl border-t border-white/10 overflow-hidden"
             >
               <div className="px-4 py-4 flex flex-col gap-4">
                 {navLinks.map((link) => (
@@ -316,7 +322,6 @@ export default function Navbar() {
                     {link.name}
                   </Link>
                 ))}
-                {/* Install button in mobile menu */}
                 {showInstallButton && (
                   <button
                     onClick={handleInstall}

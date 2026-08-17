@@ -1,13 +1,24 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiLogOut, FiUser, FiHeart, FiSettings, FiEdit2, FiCalendar } from 'react-icons/fi'; // 👈 Added FiCalendar
+import {
+  FiLogOut,
+  FiUser,
+  FiHeart,
+  FiSettings,
+  FiEdit2,
+  FiCalendar,
+  FiUsers,
+  FiCheck,
+  FiPlay,
+} from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
 import { useSubscription } from '../context/SubscriptionContext';
 import { useWatchlist } from '../hooks/useWatchlist';
 import PaywallModal from '../components/PaywallModal';
 import MovieCard from '../components/MovieCard';
 import { supabase } from '../services/supabase';
+import { IMAGE_BASE } from '../services/tmdb';
 import toast from 'react-hot-toast';
 
 // ── Watchlist Content ──
@@ -66,7 +77,7 @@ function WatchlistContent() {
         <button
           onClick={() => {
             if (confirm('Clear all items from watchlist?')) {
-              watchlist.forEach(item => {
+              watchlist.forEach((item) => {
                 removeFromWatchlist(item.movie_id);
               });
             }
@@ -79,7 +90,7 @@ function WatchlistContent() {
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
         {watchlist.map((item, i) => (
           <div key={item.id || i} className="relative group">
-            <MovieCard 
+            <MovieCard
               movie={{
                 id: item.movie_id,
                 title: item.title,
@@ -106,7 +117,7 @@ function WatchlistContent() {
   );
 }
 
-// ── NEW: Scheduled Content ──
+// ── Scheduled Content ──
 function ScheduledContent() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -192,7 +203,6 @@ function ScheduledContent() {
     );
   }
 
-  // Format date for display
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleString('en-US', {
       weekday: 'short',
@@ -207,13 +217,14 @@ function ScheduledContent() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <p className="text-gray-400 text-sm">
-          {scheduled.length} {scheduled.length === 1 ? 'movie' : 'movies'} scheduled
+          {scheduled.length} {scheduled.length === 1 ? 'movie' : 'movies'}{' '}
+          scheduled
         </p>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
         {scheduled.map((item, i) => (
           <div key={item.id || i} className="relative group">
-            <MovieCard 
+            <MovieCard
               movie={{
                 id: item.movie_id,
                 title: item.title,
@@ -224,13 +235,11 @@ function ScheduledContent() {
               }}
               index={i}
             />
-            {/* Scheduled time badge */}
             <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black to-transparent">
               <p className="text-[10px] text-primary font-bold text-center">
                 {formatDate(item.scheduled_at)}
               </p>
             </div>
-            {/* Remove button */}
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -247,9 +256,275 @@ function ScheduledContent() {
   );
 }
 
+// ── TASK 4C: Social Profile Tab ──
+function SocialTabContent({ user, getDisplayName }) {
+  const [profileData, setProfileData] = useState({
+    username: '',
+    bio: '',
+    favorite_genre: 'Action',
+  });
+
+  const [stats, setStats] = useState({
+    following: 0,
+    followers: 0,
+    watchedCount: 0,
+  });
+
+  const [userActivity, setUserActivity] = useState([]);
+  const [saving, setSaving] = useState(false);
+
+  const fetchProfileAndStats = async () => {
+    if (!user) return;
+    try {
+      // 1. Fetch user_profiles
+      const { data: prof } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (prof) {
+        setProfileData({
+          username: prof.username || '',
+          bio: prof.bio || '',
+          favorite_genre: prof.favorite_genre || 'Action',
+        });
+      }
+
+      // 2. Fetch stats
+      const { count: followingCount } = await supabase
+        .from('follows')
+        .select('*', { count: 'exact', head: true })
+        .eq('follower_id', user.id);
+
+      const { count: followersCount } = await supabase
+        .from('follows')
+        .select('*', { count: 'exact', head: true })
+        .eq('following_id', user.id);
+
+      const { count: watched } = await supabase
+        .from('activity_feed')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id);
+
+      setStats({
+        following: followingCount || 0,
+        followers: followersCount || 0,
+        watchedCount: watched || 0,
+      });
+
+      // 3. Fetch user's own activity feed
+      const { data: act } = await supabase
+        .from('activity_feed')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      setUserActivity(act || []);
+    } catch (err) {
+      console.error('Error fetching social profile:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchProfileAndStats();
+  }, [user]);
+
+  const handleSaveSocialProfile = async (e) => {
+    e.preventDefault();
+    if (!user) return;
+
+    try {
+      setSaving(true);
+      const usernameHandle = profileData.username.trim().startsWith('@')
+        ? profileData.username.trim()
+        : `@${profileData.username.trim()}`;
+
+      const { error } = await supabase.from('user_profiles').upsert({
+        id: user.id,
+        display_name: getDisplayName(),
+        username: usernameHandle,
+        bio: profileData.bio.trim(),
+        favorite_genre: profileData.favorite_genre,
+      });
+
+      if (error) throw error;
+      toast.success('Social profile updated! 🎉');
+      await fetchProfileAndStats();
+    } catch (err) {
+      console.error('Error saving profile:', err);
+      toast.error(err.message || 'Failed to update profile.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const genres = [
+    'Action',
+    'Comedy',
+    'Drama',
+    'Nollywood',
+    'VJ Movies',
+    'Sci-Fi',
+    'Horror',
+    'Animation',
+    'Documentary',
+  ];
+
+  return (
+    <div className="space-y-8">
+      {/* User Stats Banner */}
+      <div className="grid grid-cols-3 gap-4 text-center">
+        <div className="glass rounded-2xl p-4 border border-white/10">
+          <div className="text-2xl font-black text-primary">
+            {stats.following}
+          </div>
+          <div className="text-gray-400 text-xs mt-0.5">Following</div>
+        </div>
+        <div className="glass rounded-2xl p-4 border border-white/10">
+          <div className="text-2xl font-black text-gold">{stats.followers}</div>
+          <div className="text-gray-400 text-xs mt-0.5">Followers</div>
+        </div>
+        <div className="glass rounded-2xl p-4 border border-white/10">
+          <div className="text-2xl font-black text-white">
+            {stats.watchedCount}
+          </div>
+          <div className="text-gray-400 text-xs mt-0.5">Movies Watched</div>
+        </div>
+      </div>
+
+      {/* Edit Social Profile Card */}
+      <form
+        onSubmit={handleSaveSocialProfile}
+        className="glass rounded-3xl border border-white/10 p-6 space-y-4"
+      >
+        <h3
+          className="text-white text-xl font-bold border-b border-white/10 pb-3"
+          style={{ fontFamily: 'Bebas Neue, sans-serif' }}
+        >
+          EDIT SOCIAL PROFILE
+        </h3>
+
+        <div>
+          <label className="block text-gray-300 text-xs font-semibold mb-1">
+            Username (@handle)
+          </label>
+          <input
+            type="text"
+            value={profileData.username}
+            onChange={(e) =>
+              setProfileData({ ...profileData, username: e.target.value })
+            }
+            placeholder="@kizito_fan"
+            className="w-full bg-white/5 border border-white/10 focus:border-primary rounded-xl py-2.5 px-4 text-white text-sm outline-none transition-all"
+          />
+        </div>
+
+        <div>
+          <div className="flex justify-between items-center mb-1">
+            <label className="block text-gray-300 text-xs font-semibold">
+              Bio
+            </label>
+            <span className="text-gray-500 text-xs">
+              {profileData.bio.length}/120
+            </span>
+          </div>
+          <textarea
+            maxLength={120}
+            rows={2}
+            value={profileData.bio}
+            onChange={(e) =>
+              setProfileData({ ...profileData, bio: e.target.value })
+            }
+            placeholder="Tell fellow movie fans what you love to watch..."
+            className="w-full bg-white/5 border border-white/10 focus:border-primary rounded-xl p-3 text-white text-sm outline-none transition-all resize-none"
+          />
+        </div>
+
+        <div>
+          <label className="block text-gray-300 text-xs font-semibold mb-1">
+            Favorite Genre
+          </label>
+          <select
+            value={profileData.favorite_genre}
+            onChange={(e) =>
+              setProfileData({ ...profileData, favorite_genre: e.target.value })
+            }
+            className="w-full bg-dark border border-white/10 focus:border-primary rounded-xl p-3 text-white text-sm outline-none transition-all"
+          >
+            {genres.map((g) => (
+              <option key={g} value={g} className="bg-dark text-white">
+                {g}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <button
+          type="submit"
+          disabled={saving}
+          className="w-full py-3 bg-primary text-black font-bold rounded-xl text-sm hover:bg-primary/90 transition-all disabled:opacity-50"
+        >
+          {saving ? 'Updating...' : 'Save Social Profile'}
+        </button>
+      </form>
+
+      {/* User's Recent Activity Feed */}
+      <div className="space-y-4">
+        <h3
+          className="text-white text-xl font-bold"
+          style={{ fontFamily: 'Bebas Neue, sans-serif' }}
+        >
+          MY RECENT ACTIVITY
+        </h3>
+
+        {userActivity.length === 0 ? (
+          <div className="text-center py-8 glass rounded-2xl border border-white/10 text-gray-500 text-xs">
+            No activity posted yet. Start watching movies to share updates!
+          </div>
+        ) : (
+          userActivity.map((item, i) => (
+            <div
+              key={item.id || i}
+              className="glass rounded-2xl p-4 border border-white/10 flex items-center gap-4"
+            >
+              {item.movie_poster && (
+                <img
+                  src={`${IMAGE_BASE}${item.movie_poster}`}
+                  alt={item.movie_title}
+                  className="w-12 h-16 object-cover rounded-lg"
+                />
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-white font-bold text-sm truncate">
+                  {item.movie_title}
+                </p>
+                <p className="text-xs text-primary font-medium capitalize">
+                  {item.type} • {new Date(item.created_at).toLocaleDateString()}
+                </p>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function Profile() {
-  const { user, logout, getDisplayName, getAvatar, refresh: refreshAuth } = useAuth();
-  const { subscription, isActive, daysRemaining, refresh: refreshSubscription } = useSubscription();
+  const {
+    user,
+    logout,
+    getDisplayName,
+    getAvatar,
+    refresh: refreshAuth,
+  } = useAuth();
+  const {
+    subscription,
+    isActive,
+    daysRemaining,
+  } = useSubscription();
   const navigate = useNavigate();
   const [tab, setTab] = useState('account');
   const [editingName, setEditingName] = useState(false);
@@ -257,19 +532,16 @@ export default function Profile() {
   const [updating, setUpdating] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
 
-  // Redirect if not logged in
   useEffect(() => {
     if (!user) navigate('/login');
   }, [user, navigate]);
 
-  // Load current name into edit field
   useEffect(() => {
     if (user) {
       setNewName(getDisplayName());
     }
   }, [user, getDisplayName]);
 
-  // Check URL params for tab
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const tabParam = params.get('tab');
@@ -277,6 +549,8 @@ export default function Profile() {
       setTab('watchlist');
     } else if (tabParam === 'schedule') {
       setTab('schedule');
+    } else if (tabParam === 'social') {
+      setTab('social');
     }
   }, []);
 
@@ -311,7 +585,6 @@ export default function Profile() {
     setShowPaywall(true);
   };
 
-  // Format date
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -321,7 +594,6 @@ export default function Profile() {
     });
   };
 
-  // Plan display names
   const planNames = {
     free_trial: 'Free Trial',
     expired_trial: 'Trial Expired',
@@ -342,7 +614,6 @@ export default function Profile() {
   return (
     <div className="min-h-screen bg-dark px-4 sm:px-8 py-10">
       <div className="max-w-7xl mx-auto">
-
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -372,7 +643,6 @@ export default function Profile() {
           className="glass rounded-3xl border border-white/10 p-8 mb-8"
         >
           <div className="flex flex-col sm:flex-row items-center gap-6">
-            {/* Avatar */}
             <div className="w-20 h-20 rounded-full bg-primary flex items-center justify-center flex-shrink-0 shadow-lg shadow-primary/30 overflow-hidden">
               {avatar ? (
                 <img
@@ -387,7 +657,6 @@ export default function Profile() {
               )}
             </div>
 
-            {/* Name & Email */}
             <div className="flex-1 text-center sm:text-left">
               <div className="flex items-center gap-2 justify-center sm:justify-start">
                 <h2 className="text-white text-2xl font-black">{displayName}</h2>
@@ -401,7 +670,6 @@ export default function Profile() {
               <p className="text-gray-400 text-sm">{user.email}</p>
             </div>
 
-            {/* Subscription Badge */}
             <div className="flex flex-col items-center gap-1">
               <span
                 className={`px-4 py-1.5 rounded-full text-xs font-bold ${
@@ -429,36 +697,15 @@ export default function Profile() {
               )}
             </div>
           </div>
-
-          {/* Subscription Details (expanded) */}
-          {subscription && (
-            <div className="mt-6 pt-6 border-t border-white/10 grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
-              <div>
-                <p className="text-gray-500 text-xs">Plan</p>
-                <p className="text-white font-medium">{planDisplayName}</p>
-              </div>
-              <div>
-                <p className="text-gray-500 text-xs">Status</p>
-                <p className={`font-medium ${isExpired ? 'text-red-400' : 'text-green-400'}`}>
-                  {isExpired ? 'Expired' : 'Active'}
-                </p>
-              </div>
-              <div>
-                <p className="text-gray-500 text-xs">Expires</p>
-                <p className="text-white font-medium">
-                  {subscription.expires_at ? formatDate(subscription.expires_at) : 'N/A'}
-                </p>
-              </div>
-            </div>
-          )}
         </motion.div>
 
         {/* Tabs */}
         <div className="flex gap-2 mb-8 flex-wrap">
           {[
             { id: 'account', label: 'Account', icon: <FiUser /> },
+            { id: 'social', label: 'Social', icon: <FiUsers /> }, // 👈 Task 4C: Social Tab
             { id: 'watchlist', label: 'Watchlist', icon: <FiHeart /> },
-            { id: 'schedule', label: 'Upcoming', icon: <FiCalendar /> }, // 👈 NEW
+            { id: 'schedule', label: 'Upcoming', icon: <FiCalendar /> },
             { id: 'settings', label: 'Settings', icon: <FiSettings /> },
           ].map((t) => (
             <button
@@ -489,9 +736,10 @@ export default function Profile() {
               { label: 'Plan', value: planDisplayName },
               {
                 label: 'Provider',
-                value: user.app_metadata?.provider === 'google'
-                  ? '🔵 Google Account'
-                  : '📧 Email & Password',
+                value:
+                  user.app_metadata?.provider === 'google'
+                    ? '🔵 Google Account'
+                    : '📧 Email & Password',
               },
               {
                 label: 'Member Since',
@@ -513,7 +761,18 @@ export default function Profile() {
           </motion.div>
         )}
 
-        {/* ─── WATCHLIST TAB ─── */}
+        {/* Social Tab (Task 4C) */}
+        {tab === 'social' && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            key="social"
+          >
+            <SocialTabContent user={user} getDisplayName={getDisplayName} />
+          </motion.div>
+        )}
+
+        {/* Watchlist Tab */}
         {tab === 'watchlist' && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -524,7 +783,7 @@ export default function Profile() {
           </motion.div>
         )}
 
-        {/* ─── SCHEDULE TAB (NEW) ─── */}
+        {/* Schedule Tab */}
         {tab === 'schedule' && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -594,7 +853,7 @@ export default function Profile() {
         )}
       </div>
 
-      {/* ── Edit Name Modal ── */}
+      {/* Edit Name Modal */}
       <AnimatePresence>
         {editingName && (
           <motion.div
@@ -611,7 +870,10 @@ export default function Profile() {
               className="glass rounded-3xl border border-white/10 max-w-md w-full p-8"
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 className="text-white text-2xl font-black mb-4" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>
+              <h3
+                className="text-white text-2xl font-black mb-4"
+                style={{ fontFamily: 'Bebas Neue, sans-serif' }}
+              >
                 Edit Display Name
               </h3>
               <input
@@ -645,7 +907,6 @@ export default function Profile() {
         )}
       </AnimatePresence>
 
-      {/* ── Paywall Modal ── */}
       <PaywallModal
         isOpen={showPaywall}
         onClose={() => setShowPaywall(false)}

@@ -1,482 +1,326 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { FiPlay, FiChevronRight } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
-import { getTrending, IMAGE_ORIGINAL } from '../services/tmdb';
-import { pricingPlans } from '../data/pricingPlans';
+import { getTrending, IMAGE_BASE } from '../services/tmdb';
 
-// ─── Exchange rate (1 USD = 3800 UGX) ───
-const UGX_TO_USD_RATE = 3800;
+// ── Background Video ID (Easy to change in 1 place) ──
+export const BG_VIDEO_ID = 'dQw4w9WgXcQ';
 
 export default function Landing() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [trending, setTrending] = useState([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [currency, setCurrency] = useState('UGX');
 
-  // Redirect logged-in users to /home
+  // If user is already logged in, skip landing page immediately
   useEffect(() => {
     if (!authLoading && user) {
       navigate('/home', { replace: true });
     }
   }, [user, authLoading, navigate]);
 
-  // Fetch trending movies
+  // Fetch trending movies/shows
   useEffect(() => {
-    const fetchTrending = async () => {
+    const fetchTrendingData = async () => {
       try {
         const response = await getTrending();
-        const movies = response?.data?.results || [];
-        setTrending(Array.isArray(movies) ? movies.slice(0, 5) : []);
-        console.log('✅ Trending movies loaded:', movies.slice(0, 5).length);
-      } catch (error) {
-        console.error('Error fetching trending:', error);
+        const results = response?.data?.results || [];
+        setTrending(results.slice(0, 10));
+      } catch (err) {
+        console.error('Error fetching trending for landing page:', err);
       } finally {
         setLoading(false);
       }
     };
-    fetchTrending();
+    fetchTrendingData();
   }, []);
 
-  // Cycle through backdrop images
-  useEffect(() => {
-    if (trending.length === 0) return;
-    const interval = setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % trending.length);
-    }, 6000);
-    return () => clearInterval(interval);
-  }, [trending]);
-
-  const currentMovie = trending[currentIndex];
-  const backdropUrl = currentMovie?.backdrop_path
-    ? `${IMAGE_ORIGINAL}${currentMovie.backdrop_path}`
-    : null;
-
-  // Helper to truncate overview
-  const truncateOverview = (text, maxLength = 150) => {
-    if (!text) return '';
-    return text.length > maxLength ? text.slice(0, maxLength) + '...' : text;
+  const handleStartWatching = () => {
+    if (user) {
+      navigate('/home');
+    } else {
+      navigate('/login');
+    }
   };
 
-  if (authLoading || loading) {
-    return (
-      <div className="min-h-screen bg-dark flex items-center justify-center">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-          className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full"
-        />
-      </div>
-    );
-  }
-
-  if (user) return null; // already redirected
+  if (authLoading) return null;
+  if (user) return null; // Prevent flicker before redirect
 
   return (
-    <div className="min-h-screen bg-dark overflow-x-hidden">
-      {/* ─── SECTION 1: FULLSCREEN CINEMATIC HERO ─── */}
-      <section className="relative h-screen w-full overflow-hidden">
-        {/* Ken Burns Zoom + Crossfade Backdrop */}
-        <AnimatePresence mode="wait">
-          {backdropUrl && (
-            <motion.div
-              key={currentIndex}
-              initial={{ scale: 1.08, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 1.08, opacity: 0 }}
-              transition={{ duration: 1.2, ease: 'easeInOut' }}
-              className="absolute inset-0"
-              style={{
-                backgroundImage: `url(${backdropUrl})`,
-                backgroundSize: 'cover',
-                backgroundPosition: 'center',
-                transformOrigin: 'center',
-              }}
-            />
-          )}
-        </AnimatePresence>
-
-        {/* Dark overlays for readability */}
-        <div className="absolute inset-0 bg-gradient-to-r from-dark/90 via-dark/60 to-transparent" />
-        <div className="absolute inset-0 bg-gradient-to-t from-dark via-dark/40 to-transparent" />
-        <div className="absolute inset-0 bg-black/30" />
-
-        {/* Floating particles */}
-        {[...Array(8)].map((_, i) => (
-          <motion.div
-            key={i}
-            className="absolute w-1.5 h-1.5 rounded-full bg-primary/50 pointer-events-none"
-            style={{
-              left: `${10 + i * 12}%`,
-              top: `${20 + i * 8}%`,
-            }}
-            animate={{
-              y: [-20, 20, -20],
-              opacity: [0.2, 0.7, 0.2],
-              scale: [1, 1.5, 1],
-            }}
-            transition={{
-              duration: 4 + i * 0.5,
-              repeat: Infinity,
-              delay: i * 0.3,
-              ease: 'easeInOut',
-            }}
-          />
-        ))}
-
-        {/* ── Content ── */}
-        <div className="relative z-10 h-full flex items-center px-4 sm:px-8 lg:px-16">
-          <div className="max-w-3xl">
-            {/* Badge */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="inline-flex items-center gap-2 bg-primary/20 backdrop-blur-sm border border-primary/40 rounded-full px-4 py-1.5 mb-4"
-            >
-              <span className="text-primary text-sm font-bold tracking-wider">
-                🇺🇬 BUILT FOR UGANDA
-              </span>
-            </motion.div>
-
-            {/* Movie Title (slides in from left) */}
-            <AnimatePresence mode="wait">
-              <motion.h1
-                key={currentMovie?.id || 'fallback'}
-                initial={{ x: -50, opacity: 0 }}
-                animate={{ x: 0, opacity: 1 }}
-                exit={{ x: 50, opacity: 0 }}
-                transition={{ duration: 0.6, ease: 'easeOut' }}
-                className="text-5xl sm:text-7xl md:text-8xl font-black text-white leading-[1.1] mb-2"
-                style={{
-                  fontFamily: 'Bebas Neue, sans-serif',
-                  textShadow: '0 0 40px rgba(0,0,0,0.5)',
-                }}
-              >
-                {currentMovie?.title || 'WATCH WITHOUT LIMITS'}
-              </motion.h1>
-            </AnimatePresence>
-
-            {/* Movie Overview (slides in from left with delay) */}
-            <AnimatePresence mode="wait">
-              <motion.p
-                key={currentMovie?.id + '-overview'}
-                initial={{ x: -40, opacity: 0 }}
-                animate={{ x: 0, opacity: 1 }}
-                exit={{ x: 40, opacity: 0 }}
-                transition={{ duration: 0.6, delay: 0.1, ease: 'easeOut' }}
-                className="text-gray-300 text-base sm:text-lg md:text-xl max-w-xl mt-2 leading-relaxed line-clamp-2"
-              >
-                {currentMovie?.overview
-                  ? truncateOverview(currentMovie.overview, 150)
-                  : 'Movies, Series & African Content — Stream free for 7 days. No credit card needed.'}
-              </motion.p>
-            </AnimatePresence>
-
-            {/* CTA Buttons */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className="flex flex-wrap items-center gap-4 mt-6"
-            >
-              <Link
-                to="/login"
-                className="flex items-center gap-3 bg-primary text-black font-black px-8 py-4 rounded-full text-sm tracking-widest uppercase hover:shadow-lg hover:shadow-primary/50 transition-all hover:scale-105"
-              >
-                <FiPlay fill="black" /> Start Watching Free
-              </Link>
-              <Link
-                to="/home"
-                className="flex items-center gap-2 glass text-white font-semibold px-8 py-4 rounded-full text-sm border border-white/20 hover:border-primary/60 transition-all hover:bg-white/5"
-              >
-                Browse Movies <FiChevronRight />
-              </Link>
-            </motion.div>
-
-            {/* Trust line */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.4 }}
-              className="flex flex-wrap items-center gap-4 sm:gap-6 mt-6 text-xs sm:text-sm text-gray-400"
-            >
-              <span className="flex items-center gap-1.5">
-                <span className="text-primary">✓</span> 7-day free trial
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="text-primary">✓</span> MTN & Airtel accepted
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="text-primary">✓</span> Cancel anytime
-              </span>
-            </motion.div>
-          </div>
-        </div>
-
-        {/* Bottom thumbnail strip */}
-        {trending.length > 0 && (
-          <div className="absolute bottom-8 left-0 right-0 z-20 flex justify-center px-4">
-            <div className="flex gap-2 overflow-x-auto hide-scrollbar max-w-2xl">
-              {trending.map((movie, idx) => (
-                <button
-                  key={movie.id}
-                  onClick={() => setCurrentIndex(idx)}
-                  className={`relative flex-shrink-0 w-16 h-24 rounded-lg overflow-hidden border-2 transition-all ${
-                    idx === currentIndex
-                      ? 'border-primary shadow-lg shadow-primary/40 scale-110'
-                      : 'border-white/20 hover:border-white/50'
-                  }`}
-                >
-                  <img
-                    src={`${IMAGE_ORIGINAL}${movie.poster_path}`}
-                    alt={movie.title}
-                    className="w-full h-full object-cover"
-                  />
-                  {idx === currentIndex && (
-                    <div className="absolute inset-0 bg-primary/20" />
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Progress bar */}
-        <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/10 z-20">
-          <motion.div
-            className="h-full bg-primary"
-            initial={{ width: '0%' }}
-            animate={{ width: '100%' }}
-            transition={{ duration: 6, ease: 'linear' }}
-            key={currentIndex}
-          />
-        </div>
-      </section>
-
-      {/* ─── SECTION 2: STATS BAR ─── */}
-      <section className="relative -mt-1 z-10">
-        <div className="bg-gradient-to-r from-primary/20 via-primary/5 to-transparent border-y border-primary/20 py-6 md:py-8">
-          <div className="max-w-7xl mx-auto px-4 sm:px-8 grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-            {[
-              { label: 'Movies & Series', value: '1000+' },
-              { label: 'Daily Active Users', value: '50K+' },
-              { label: 'Hours of Content', value: '5000+' },
-              { label: 'Free Trial', value: '7 Days' },
-            ].map((stat, i) => (
-              <motion.div
-                key={stat.label}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.1 }}
-                viewport={{ once: true }}
-                className="p-4"
-              >
-                <div className="text-2xl md:text-4xl font-black text-primary">
-                  {stat.value}
-                </div>
-                <div className="text-gray-400 text-xs md:text-sm font-medium mt-1">
-                  {stat.label}
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ─── SECTION 3: FEATURES ─── */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-8 py-16 md:py-24">
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          viewport={{ once: true }}
-          className="text-center mb-12"
+    <div className="min-h-screen bg-dark overflow-x-hidden relative">
+      {/* ── Floating Top-Right Sign In Button ── */}
+      <div className="fixed top-6 right-6 z-50">
+        <Link
+          to="/login"
+          className="glass px-6 py-2.5 rounded-full text-white hover:text-primary border border-white/20 hover:border-primary transition-all text-sm font-bold shadow-lg backdrop-blur-md"
         >
-          <h2
-            className="text-4xl md:text-5xl font-black"
-            style={{ fontFamily: 'Bebas Neue, sans-serif' }}
-          >
-            Why <span className="gradient-text">Movie Zone</span>?
-          </h2>
-          <p className="text-gray-400 mt-2">The best way to stream in Uganda</p>
-        </motion.div>
+          Sign In
+        </Link>
+      </div>
 
+      {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+          SECTION 1: HERO WITH YOUTUBE VIDEO + GAME OF THRONES ASTROLABE
+          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+      <section className="relative h-screen w-full overflow-hidden flex items-center justify-center">
+        {/* YouTube Video Background */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          <iframe
+            src={`https://www.youtube.com/embed/${BG_VIDEO_ID}?autoplay=1&mute=1&loop=1&playlist=${BG_VIDEO_ID}&controls=0&showinfo=0&rel=0&modestbranding=1&playsinline=1`}
+            className="absolute w-full h-full object-cover scale-125"
+            style={{
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%) scale(1.25)',
+              pointerEvents: 'none',
+              border: 'none',
+            }}
+            allow="autoplay; fullscreen"
+            title="background"
+          />
+        </div>
+
+        {/* ── Game of Thrones Opening Theme Astrolabe / Mechanical Clockwork Rings ── */}
+        <div className="absolute inset-0 pointer-events-none flex items-center justify-center opacity-30">
+          {/* Outer Ring */}
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 45, repeat: Infinity, ease: 'linear' }}
+            className="w-[600px] h-[600px] md:w-[850px] md:h-[850px] rounded-full border-2 border-dashed border-gold/40 absolute"
+          />
+          {/* Middle Ring */}
+          <motion.div
+            animate={{ rotate: -360 }}
+            transition={{ duration: 30, repeat: Infinity, ease: 'linear' }}
+            className="w-[450px] h-[450px] md:w-[650px] md:h-[650px] rounded-full border border-primary/40 absolute"
+          />
+          {/* Inner Golden Mechanical Sigil */}
+          <motion.div
+            animate={{ rotate: 360, scale: [1, 1.05, 1] }}
+            transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
+            className="w-[300px] h-[300px] md:w-[420px] md:h-[420px] rounded-full border-4 border-gold/30 absolute shadow-[0_0_80px_rgba(255,215,0,0.2)]"
+          />
+        </div>
+
+        {/* Gradient Overlays */}
+        <div className="absolute inset-0 bg-gradient-to-t from-dark via-dark/80 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-r from-dark/90 via-dark/70 to-transparent" />
+        <div className="absolute inset-0 bg-dark/40" />
+
+        {/* Hero Content */}
+        <div className="relative z-10 max-w-5xl mx-auto px-6 text-center flex flex-col items-center justify-center pt-16">
+          {/* Badge */}
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2, duration: 0.6 }}
+            className="inline-flex items-center gap-2 glass px-5 py-2 rounded-full border border-primary/30 text-primary text-sm font-semibold mb-6 shadow-xl backdrop-blur-xl"
+          >
+            <span>🇺🇬 Uganda's #1 Streaming Platform</span>
+          </motion.div>
+
+          {/* Staggered Heading */}
+          <div className="space-y-1 mb-6">
+            <motion.h1
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4, duration: 0.6 }}
+              className="text-6xl md:text-8xl font-black text-white leading-none"
+              style={{ fontFamily: 'Bebas Neue, sans-serif' }}
+            >
+              WATCH
+            </motion.h1>
+
+            <motion.h1
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.6, duration: 0.6 }}
+              className="text-6xl md:text-8xl font-black gradient-text leading-none tracking-wide"
+              style={{ fontFamily: 'Bebas Neue, sans-serif' }}
+            >
+              ANYTHING.
+            </motion.h1>
+
+            <motion.h1
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.8, duration: 0.6 }}
+              className="text-5xl md:text-7xl font-black text-white/90 leading-none"
+              style={{ fontFamily: 'Bebas Neue, sans-serif' }}
+            >
+              ANYTIME.
+            </motion.h1>
+          </div>
+
+          {/* Subheading */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 1, duration: 0.6 }}
+            className="text-gray-300 text-lg md:text-xl max-w-2xl mx-auto space-y-1 mb-8"
+          >
+            <p className="font-semibold text-white">
+              Movies · Series · African Content · VJ Movies
+            </p>
+            <p className="text-gray-400 text-base">
+              Stream free — no credit card needed
+            </p>
+          </motion.div>
+
+          {/* CTA Buttons */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 1.2, duration: 0.6 }}
+            className="flex flex-wrap items-center justify-center gap-4 mb-10"
+          >
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={handleStartWatching}
+              className="bg-primary text-black font-extrabold rounded-full px-8 py-4 text-lg shadow-xl shadow-primary/30 flex items-center gap-2 hover:bg-primary/90 transition-all"
+            >
+              <FiPlay fill="black" /> Start Watching Free
+            </motion.button>
+
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => navigate('/movies')}
+              className="glass border border-primary text-primary font-bold rounded-full px-8 py-4 text-lg flex items-center gap-2 hover:bg-primary/10 transition-all"
+            >
+              Browse Movies <FiChevronRight />
+            </motion.button>
+          </motion.div>
+
+          {/* Social Proof */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 1.4, duration: 0.6 }}
+            className="text-gray-400 text-sm flex gap-4 md:gap-8 flex-wrap justify-center font-medium"
+          >
+            <span>🎬 10,000+ Movies</span>
+            <span>|</span>
+            <span>📺 5,000+ Series</span>
+            <span>|</span>
+            <span>🌍 African Zone</span>
+            <span>|</span>
+            <span>🤖 AI Assistant</span>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+          SECTION 2: FEATURES STRIP
+          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+      <section className="max-w-7xl mx-auto px-6 py-16">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {[
             {
-              icon: '🚀',
-              title: 'Zero Ads',
-              desc: 'Watch uninterrupted — no annoying ads, just pure entertainment.',
+              icon: '🎬',
+              title: 'Massive Library',
+              desc: 'Movies, Series, Animations, Docs',
             },
             {
-              icon: '🎯',
-              title: 'Mood-Based Discovery',
-              desc: 'Find what to watch based on how you feel, not just algorithms.',
+              icon: '🌍',
+              title: 'African Zone',
+              desc: 'Nollywood, VJ Movies, Local content',
             },
             {
-              icon: '📱',
-              title: 'Any Device, Anywhere',
-              desc: 'Stream on your phone, tablet, or TV. Uganda-optimized for speed.',
+              icon: '🤖',
+              title: 'AI Movie Guide',
+              desc: 'Ask our AI what to watch next',
             },
-          ].map((feature, i) => (
+          ].map((item, i) => (
             <motion.div
-              key={feature.title}
-              initial={{ opacity: 0, y: 20 }}
+              key={item.title}
+              initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.1 }}
               viewport={{ once: true }}
-              whileHover={{ y: -8, scale: 1.02 }}
-              className="glass rounded-2xl p-6 border border-white/10 hover:border-primary/40 transition-all"
+              transition={{ delay: i * 0.15 }}
+              whileHover={{ y: -6 }}
+              className="glass rounded-2xl p-6 border border-white/10 hover:border-primary/40 transition-all shadow-xl"
             >
-              <div className="text-4xl mb-4">{feature.icon}</div>
-              <h3 className="text-xl font-bold text-white mb-2">{feature.title}</h3>
-              <p className="text-gray-400 text-sm leading-relaxed">{feature.desc}</p>
+              <div className="text-primary text-4xl mb-3">{item.icon}</div>
+              <h3
+                className="text-white text-xl font-bold mb-1"
+                style={{ fontFamily: 'Bebas Neue, sans-serif' }}
+              >
+                {item.title}
+              </h3>
+              <p className="text-gray-400 text-sm">{item.desc}</p>
             </motion.div>
           ))}
         </div>
       </section>
 
-      {/* ─── SECTION 4: PRICING PREVIEW (with Currency Toggle) ─── */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-8 py-16 md:py-24 bg-gradient-to-b from-dark to-primary/5">
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          viewport={{ once: true }}
-          className="text-center mb-12"
-        >
+      {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+          SECTION 3: TRENDING ROW SECTION
+          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+      {trending.length > 0 && (
+        <section className="max-w-7xl mx-auto px-6 py-12">
           <h2
-            className="text-4xl md:text-5xl font-black"
+            className="text-3xl md:text-4xl font-black text-white mb-6 flex items-center gap-2"
             style={{ fontFamily: 'Bebas Neue, sans-serif' }}
           >
-            Simple, <span className="gradient-text">Affordable</span> Pricing
+            TRENDING NOW <span className="text-red-500">🔥</span>
           </h2>
-          <p className="text-gray-400 mt-2">Pay with MTN Mobile Money or Airtel Money</p>
 
-          {/* ─── Currency Toggle ─── */}
-          <div className="mt-4 flex items-center justify-center gap-2">
-            <button
-              onClick={() => setCurrency('UGX')}
-              className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all ${
-                currency === 'UGX'
-                  ? 'bg-primary text-black'
-                  : 'bg-white/10 text-gray-400 hover:text-white'
-              }`}
-            >
-              🇺🇬 UGX
-            </button>
-            <span className="text-gray-600">|</span>
-            <button
-              onClick={() => setCurrency('USD')}
-              className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all ${
-                currency === 'USD'
-                  ? 'bg-primary text-black'
-                  : 'bg-white/10 text-gray-400 hover:text-white'
-              }`}
-            >
-              🌍 USD
-            </button>
-          </div>
-          <p className="text-gray-500 text-xs mt-2">
-            USD payments via card • UGX via MTN/Airtel Money
-          </p>
-        </motion.div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-fr max-w-5xl mx-auto">
-          {pricingPlans.filter(p => p.id !== 'free_trial').map((plan, i) => {
-            const usdPrice = plan.price / UGX_TO_USD_RATE;
-            const formattedUsd = `$${usdPrice.toFixed(2)}`;
-
-            return (
+          <div className="flex gap-4 overflow-x-auto hide-scrollbar pb-4">
+            {trending.map((item) => (
               <motion.div
-                key={plan.id}
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.08 }}
-                viewport={{ once: true }}
-                whileHover={{ scale: 1.03 }}
-                className={`relative bg-white/5 rounded-2xl p-6 border transition-all ${
-                  plan.highlight
-                    ? 'border-primary shadow-lg shadow-primary/20'
-                    : 'border-white/10 hover:border-primary/40'
-                } flex flex-col`}
+                key={item.id}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() =>
+                  navigate(
+                    item.media_type === 'tv'
+                      ? `/tv/${item.id}`
+                      : `/movie/${item.id}`
+                  )
+                }
+                className="w-32 h-48 flex-shrink-0 rounded-xl overflow-hidden glass border border-white/10 cursor-pointer relative group"
               >
-                {plan.highlight && (
-                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-black text-xs font-black px-4 py-1 rounded-full tracking-wider">
-                    MOST POPULAR
-                  </span>
-                )}
-
-                <h3 className="text-xl font-bold text-white" style={{ fontFamily: 'Bebas Neue, sans-serif' }}>
-                  {plan.name}
-                </h3>
-                <div className="mt-2">
-                  <span className="text-3xl font-black text-white">
-                    {currency === 'UGX' ? plan.priceLabel : formattedUsd}
-                  </span>
-                  <span className="text-gray-400 text-sm ml-1">{plan.durationLabel}</span>
-                  {/* Show conversion note */}
-                  <div className="text-gray-500 text-xs mt-1">
-                    {currency === 'UGX'
-                      ? `≈ ${formattedUsd} USD`
-                      : `≈ UGX ${plan.price.toLocaleString()}`}
-                  </div>
+                <img
+                  src={`${IMAGE_BASE}${item.poster_path}`}
+                  alt={item.title || item.name}
+                  className="w-full h-full object-cover group-hover:opacity-80 transition-opacity"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
+                  <p className="text-white text-xs font-bold truncate">
+                    {item.title || item.name}
+                  </p>
                 </div>
-
-                <ul className="mt-4 flex-1 space-y-2 text-gray-300 text-sm">
-                  {plan.features.map((feature, idx) => (
-                    <li key={idx} className="flex items-start gap-2">
-                      <span className="text-primary mt-0.5">✓</span>
-                      <span>{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-
-                <Link
-                  to="/login"
-                  className={`mt-4 w-full py-3 rounded-xl font-bold text-sm text-center transition-all ${
-                    plan.highlight
-                      ? 'bg-primary text-black hover:shadow-lg hover:shadow-primary/40'
-                      : 'bg-white/10 text-white hover:bg-white/20'
-                  }`}
-                >
-                  Get Started
-                </Link>
               </motion.div>
-            );
-          })}
-        </div>
-      </section>
+            ))}
+          </div>
+        </section>
+      )}
 
-      {/* ─── SECTION 5: FINAL CTA ─── */}
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-r from-primary/10 to-gold/5 blur-3xl" />
-        <div className="relative max-w-4xl mx-auto px-4 py-20 md:py-28 text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            viewport={{ once: true }}
-            className="glass border border-primary/30 rounded-3xl p-8 md:p-12 shadow-2xl shadow-primary/10"
+      {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+          SECTION 4: FOOTER CTA
+          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+      <section className="bg-black/90 border-t border-white/10 py-16 px-6 text-center">
+        <div className="max-w-2xl mx-auto space-y-4">
+          <p className="text-gray-400 text-sm tracking-widest uppercase">
+            Ready to start?
+          </p>
+          <h2
+            className="text-5xl md:text-6xl font-black gradient-text"
+            style={{ fontFamily: 'Bebas Neue, sans-serif' }}
           >
-            <h2
-              className="text-4xl md:text-6xl font-black text-white"
-              style={{ fontFamily: 'Bebas Neue, sans-serif' }}
-            >
-              READY TO START WATCHING?
-            </h2>
-            <p className="text-gray-300 text-lg mt-3">Join thousands of Ugandans streaming tonight</p>
-            <Link
-              to="/login"
-              className="inline-flex items-center gap-3 bg-primary text-black font-black px-10 py-4 rounded-full text-sm tracking-widest uppercase mt-6 hover:shadow-lg hover:shadow-primary/50 transition-all hover:scale-105"
-            >
-              Start Your Free Trial <FiChevronRight />
-            </Link>
-          </motion.div>
+            IT'S COMPLETELY FREE
+          </h2>
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => navigate('/login')}
+            className="bg-primary text-black font-extrabold rounded-full px-10 py-4 text-lg shadow-xl shadow-primary/30 hover:bg-primary/90 transition-all inline-flex items-center gap-2"
+          >
+            Create Free Account →
+          </motion.button>
         </div>
       </section>
     </div>

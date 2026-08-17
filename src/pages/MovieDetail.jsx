@@ -23,24 +23,61 @@ import { useSubscription } from '../context/SubscriptionContext';
 import { supabase } from '../services/supabase';
 import toast from 'react-hot-toast';
 
+// ── TASK 1: FRESH VIDEO SOURCES ──
 const SOURCES = (type, id, season = 1, episode = 1) => {
   if (type === 'tv') {
     return [
-      { name: 'VidSrc', url: `https://vidsrc.hair/embed/tv/${id}/${season}/${episode}?autoplay=true` },
-      { name: 'YapGrid', url: `https://yapgrid.com/embed/tv/${id}?season=${season}&episode=${episode}` },
-      { name: 'VidCore', url: `https://vidcore.org/embed/tv/${id}/${season}/${episode}` },
-      { name: 'VidLink', url: `https://vidlink.pro/tv/${id}/${season}/${episode}?primaryColor=00d4ff&secondaryColor=ffd700&player=jw&autoplay=true&nextbutton=true` },
-      { name: 'MultiEmbed', url: `https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1&s=${season}&e=${episode}` },
-      { name: 'VidSrc ICU', url: `https://vidsrc.icu/embed/tv/${id}/${season}/${episode}` },
+      {
+        name: 'VidSrc Pro',
+        url: `https://vidsrc.pro/embed/tv/${id}/${season}/${episode}`,
+      },
+      {
+        name: 'VidFast',
+        url: `https://vidfast.pro/tv/${id}/${season}/${episode}?autoPlay=true&theme=00d4ff`,
+      },
+      {
+        name: 'Videasy',
+        url: `https://player.videasy.net/tv/${id}/${season}/${episode}?color=00d4ff&nextEpisode=true`,
+      },
+      {
+        name: 'VidLink',
+        url: `https://vidlink.pro/tv/${id}/${season}/${episode}?primaryColor=00d4ff&secondaryColor=ffd700&player=jw&autoplay=true&nextbutton=true`,
+      },
+      {
+        name: '4KHDHub',
+        url: `https://4khdhub.com/player/tmdb.php?video_id=${id}&tmdb=1&type=tv&s=${season}&e=${episode}`,
+      },
+      {
+        name: 'MultiEmbed',
+        url: `https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1&s=${season}&e=${episode}`,
+      },
     ];
   }
   return [
-    { name: 'VidSrc', url: `https://vidsrc.hair/embed/movie/${id}?autoplay=true` },
-    { name: 'YapGrid', url: `https://yapgrid.com/embed/movie/${id}` },
-    { name: 'VidCore', url: `https://vidcore.org/embed/movie/${id}` },
-    { name: 'VidLink', url: `https://vidlink.pro/movie/${id}?primaryColor=00d4ff&secondaryColor=ffd700&player=jw&autoplay=true` },
-    { name: 'MultiEmbed', url: `https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1` },
-    { name: 'VidSrc ICU', url: `https://vidsrc.icu/embed/movie/${id}` },
+    {
+      name: 'VidSrc Pro',
+      url: `https://vidsrc.pro/embed/movie/${id}`,
+    },
+    {
+      name: 'VidFast',
+      url: `https://vidfast.pro/movie/${id}?autoPlay=true&theme=00d4ff`,
+    },
+    {
+      name: 'Videasy',
+      url: `https://player.videasy.net/movie/${id}?color=00d4ff&autoplay=true`,
+    },
+    {
+      name: 'VidLink',
+      url: `https://vidlink.pro/movie/${id}?primaryColor=00d4ff&secondaryColor=ffd700&player=jw&autoplay=true`,
+    },
+    {
+      name: '4KHDHub',
+      url: `https://4khdhub.com/player/tmdb.php?video_id=${id}&tmdb=1&type=movie`,
+    },
+    {
+      name: 'MultiEmbed',
+      url: `https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1`,
+    },
   ];
 };
 
@@ -51,7 +88,7 @@ export default function MovieDetail() {
 
   // Auth & Subscription
   const { user } = useAuth();
-  const { isActive, loading: subLoading, refresh } = useSubscription();
+  const { isActive, loading: subLoading } = useSubscription();
 
   const [details, setDetails] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -59,13 +96,7 @@ export default function MovieDetail() {
   const [showPlayer, setShowPlayer] = useState(false);
   const [showLoader, setShowLoader] = useState(false);
   const [sourceIndex, setSourceIndex] = useState(0);
-
-  // CinePro streaming state
-  const [streams, setStreams] = useState([]); // array of { id, name, url, type, quality }
-  const [currentStream, setCurrentStream] = useState(null);
-  const [streamLoading, setStreamLoading] = useState(false);
-  const [streamError, setStreamError] = useState(null);
-
+  const [sources, setSources] = useState([]);
   const [iframeReady, setIframeReady] = useState(false);
 
   const [showTrailer, setShowTrailer] = useState(false);
@@ -89,7 +120,11 @@ export default function MovieDetail() {
   // Comments refresh
   const [commentRefreshKey, setCommentRefreshKey] = useState(0);
 
-  const iframeRef = useRef(null);
+  // Task 4D: Rating Prompt State
+  const [showRatingPrompt, setShowRatingPrompt] = useState(false);
+  const [hoverStar, setHoverStar] = useState(0);
+
+  const watchTimerRef = useRef(null);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -119,41 +154,59 @@ export default function MovieDetail() {
   }, [id]);
 
   useEffect(() => {
-    // clear streams when selection changes; CinePro fetch happens on Watch
-    setStreams([]);
+    setSources(
+      SOURCES(isTV ? 'tv' : 'movie', id, selectedSeason, selectedEpisode)
+    );
     setSourceIndex(0);
   }, [selectedSeason, selectedEpisode, id]);
 
+  // Task 1: handleWatch is strictly synchronous
   const handleWatch = () => {
-    const PAYWALL_ENABLED = false;
-
     if (!user) {
-      toast('Please sign in to start your free trial', {
+      toast('Please sign in to start streaming', {
         icon: '🎬',
         duration: 4000,
       });
       navigate('/login');
       return;
     }
-    if (PAYWALL_ENABLED && !isActive) {
+
+    if (!isActive) {
       setPaywallReason('trial_ended');
       setShowPaywall(true);
       return;
     }
 
-    const sources = SOURCES(
+    const newSources = SOURCES(
       isTV ? 'tv' : 'movie',
       id,
       selectedSeason,
       selectedEpisode
     );
-
-    setStreams(sources);
-    setCurrentStream(sources[0]);
+    setSources(newSources);
     setSourceIndex(0);
     setIframeReady(false);
     setShowLoader(true);
     setShowPlayer(true);
+
+    // Task 4D: Post to activity_feed after 30 seconds of watching
+    if (watchTimerRef.current) clearTimeout(watchTimerRef.current);
+    watchTimerRef.current = setTimeout(async () => {
+      if (user && details) {
+        try {
+          await supabase.from('activity_feed').insert({
+            user_id: user.id,
+            type: 'watching',
+            movie_id: parseInt(id),
+            movie_title: details.title || details.name,
+            movie_poster: details.poster_path,
+          });
+          console.log('✅ Activity posted: watching');
+        } catch (e) {
+          console.error('Failed to post watch activity:', e);
+        }
+      }
+    }, 30000);
   };
 
   const handleLoaderComplete = () => {
@@ -162,29 +215,23 @@ export default function MovieDetail() {
   };
 
   const handleTryNextServer = () => {
-  const srcs = streams.length > 0
-    ? streams
-    : SOURCES(
-        isTV ? 'tv' : 'movie',
-        id,
-        selectedSeason,
-        selectedEpisode
-      );
-  if (sourceIndex < srcs.length - 1) {
-    const next = sourceIndex + 1;
-    setSourceIndex(next);
-    setCurrentStream(srcs[next]);
-    setIframeReady(false);
-    setShowLoader(true);
-    toast(`Trying ${srcs[next].name}...`, { icon: '🔄' });
-  } else {
-    toast.error('All servers tried. Please try again later.');
-  }
-};
+    if (sourceIndex < sources.length - 1) {
+      const next = sourceIndex + 1;
+      setIframeReady(false);
+      setShowLoader(true);
+      setSourceIndex(next);
+      setTimeout(() => {
+        setShowLoader(false);
+        setIframeReady(true);
+      }, 4200);
+      toast(`Trying Server ${next + 1}...`, { icon: '🔄' });
+    } else {
+      toast.error('All servers tried. Content may not be available yet.');
+    }
+  };
 
   const switchServer = (i) => {
     setSourceIndex(i);
-    setCurrentStream(streams[i] || null);
     setIframeReady(false);
     setShowLoader(true);
     setTimeout(() => {
@@ -207,14 +254,42 @@ export default function MovieDetail() {
     );
   };
 
+  // Task 4D: Trigger star rating prompt when closing player
   const closePlayer = () => {
     setShowPlayer(false);
     setShowLoader(false);
     setIframeReady(false);
+    if (watchTimerRef.current) clearTimeout(watchTimerRef.current);
+
+    if (user && details) {
+      setShowRatingPrompt(true);
+      setTimeout(() => {
+        setShowRatingPrompt(false);
+      }, 5000);
+    }
+  };
+
+  const handleRateMovie = async (stars) => {
+    setShowRatingPrompt(false);
+    if (!user || !details) return;
+
+    try {
+      await supabase.from('activity_feed').insert({
+        user_id: user.id,
+        type: 'finished',
+        rating: stars,
+        movie_id: parseInt(id),
+        movie_title: details.title || details.name,
+        movie_poster: details.poster_path,
+      });
+      toast.success(`Rated ${stars} ⭐! Added to your activity feed.`);
+    } catch (e) {
+      console.error('Failed to save rating:', e);
+    }
   };
 
   const handleCommentAdded = () => {
-    setCommentRefreshKey(prev => prev + 1);
+    setCommentRefreshKey((prev) => prev + 1);
     toast.success('Comment added! 🎉');
   };
 
@@ -229,20 +304,22 @@ export default function MovieDetail() {
     }
 
     try {
-      const { error } = await supabase
-        .from('scheduled_watch')
-        .insert({
-          user_id: user.id,
-          movie_id: movieId,
-          movie_type: movieType,
-          title: title,
-          poster_path: details.poster_path,
-          scheduled_at: new Date(scheduleDateTime).toISOString(),
-        });
+      const { error } = await supabase.from('scheduled_watch').insert({
+        user_id: user.id,
+        movie_id: parseInt(id),
+        movie_type: isTV ? 'tv' : 'movie',
+        title: details?.title || details?.name,
+        poster_path: details?.poster_path,
+        scheduled_at: new Date(scheduleDateTime).toISOString(),
+      });
 
       if (error) throw error;
 
-      toast.success(`📅 "${title}" scheduled for ${new Date(scheduleDateTime).toLocaleString()}`);
+      toast.success(
+        `📅 "${details?.title || details?.name}" scheduled for ${new Date(
+          scheduleDateTime
+        ).toLocaleString()}`
+      );
       setShowSchedule(false);
       setScheduleDateTime('');
     } catch (err) {
@@ -286,7 +363,6 @@ export default function MovieDetail() {
 
   return (
     <div className="min-h-screen bg-dark">
-
       {/* ── BACKDROP ── */}
       <div className="relative h-[60vh] md:h-[75vh] overflow-hidden">
         <motion.img
@@ -359,11 +435,6 @@ export default function MovieDetail() {
                   {details.number_of_seasons > 1 ? 's' : ''}
                 </span>
               )}
-              {details.number_of_episodes && (
-                <span className="px-2 py-0.5 bg-white/10 rounded-full">
-                  {details.number_of_episodes} Episodes
-                </span>
-              )}
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
@@ -412,9 +483,11 @@ export default function MovieDetail() {
                     : 'glass border-white/30 text-white hover:border-primary hover:text-primary'
                 }`}
               >
-                {inWatchlist
-                  ? <FiCheck className="text-xl" />
-                  : <FiPlus className="text-xl" />}
+                {inWatchlist ? (
+                  <FiCheck className="text-xl" />
+                ) : (
+                  <FiPlus className="text-xl" />
+                )}
               </motion.button>
             </div>
           </motion.div>
@@ -423,44 +496,7 @@ export default function MovieDetail() {
 
       {/* ── MAIN CONTENT ── */}
       <div className="max-w-7xl mx-auto px-4 sm:px-8 py-10">
-
-        {/* House Finder Ad */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="w-full mb-10 rounded-2xl overflow-hidden border border-primary/20 glass p-4 flex items-center justify-between gap-4"
-          style={{
-            background:
-              'linear-gradient(135deg, rgba(0,212,255,0.05), rgba(255,215,0,0.05))',
-          }}
-        >
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center text-2xl flex-shrink-0">
-              🏠
-            </div>
-            <div>
-              <p className="text-white font-bold text-sm">
-                Looking for your dream home?
-              </p>
-              <p className="text-gray-400 text-xs">
-                Find and list properties on House Finder — Uganda's property platform
-              </p>
-            </div>
-          </div>
-          <motion.a
-            href="https://studio-6076456451-c38fd.web.app/"
-            target="_blank"
-            rel="noreferrer"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            className="flex-shrink-0 px-5 py-2 bg-primary text-black font-bold rounded-full text-xs"
-          >
-            Explore →
-          </motion.a>
-        </motion.div>
-
         <div className="flex flex-col lg:flex-row gap-10">
-
           {/* Poster */}
           <motion.div
             initial={{ opacity: 0, x: -30 }}
@@ -486,9 +522,6 @@ export default function MovieDetail() {
                   label: 'Votes',
                   value: details.vote_count?.toLocaleString(),
                 },
-                ...(details.budget
-                  ? [{ label: 'Budget', value: `$${(details.budget / 1e6).toFixed(0)}M` }]
-                  : []),
                 {
                   label: 'Language',
                   value: details.original_language?.toUpperCase(),
@@ -626,31 +659,6 @@ export default function MovieDetail() {
                   <p className="text-gray-300 leading-relaxed text-sm md:text-base mb-8">
                     {details.overview}
                   </p>
-                  {details.production_companies?.filter((c) => c.logo_path)
-                    .length > 0 && (
-                    <div>
-                      <h3 className="text-white font-bold text-lg mb-4">
-                        Production
-                      </h3>
-                      <div className="flex flex-wrap gap-3">
-                        {details.production_companies
-                          .filter((c) => c.logo_path)
-                          .slice(0, 5)
-                          .map((company) => (
-                            <div
-                              key={company.id}
-                              className="glass px-4 py-2 rounded-xl border border-white/10"
-                            >
-                              <img
-                                src={`${IMAGE_BASE}${company.logo_path}`}
-                                alt={company.name}
-                                className="h-5 object-contain opacity-70"
-                              />
-                            </div>
-                          ))}
-                      </div>
-                    </div>
-                  )}
                 </motion.div>
               )}
 
@@ -723,19 +731,8 @@ export default function MovieDetail() {
                               <p className="text-white text-sm font-medium">
                                 {review.author}
                               </p>
-                              <p className="text-gray-500 text-xs">
-                                {new Date(review.created_at).toLocaleDateString()}
-                              </p>
                             </div>
                           </div>
-                          {review.author_details?.rating && (
-                            <div className="flex items-center gap-1 bg-gold/10 px-3 py-1 rounded-full">
-                              <AiFillStar className="text-gold text-xs" />
-                              <span className="text-gold text-xs font-bold">
-                                {review.author_details.rating}
-                              </span>
-                            </div>
-                          )}
                         </div>
                         <p className="text-gray-400 text-sm leading-relaxed line-clamp-4">
                           {review.content}
@@ -786,28 +783,26 @@ export default function MovieDetail() {
         >
           <div className="flex items-center gap-3 mb-6">
             <span className="text-2xl">💬</span>
-            <h2 className="text-2xl font-bold text-white">
-              Comments
-            </h2>
+            <h2 className="text-2xl font-bold text-white">Comments</h2>
             <div className="flex-1 h-px bg-gradient-to-r from-primary/50 to-transparent ml-2" />
           </div>
 
-          <CommentInput 
-            movieId={movieId} 
-            movieType={movieType} 
+          <CommentInput
+            movieId={movieId}
+            movieType={movieType}
             onCommentAdded={handleCommentAdded}
           />
 
-          <CommentList 
+          <CommentList
             key={commentRefreshKey}
-            movieId={movieId} 
-            movieType={movieType} 
+            movieId={movieId}
+            movieType={movieType}
           />
         </motion.div>
       </div>
 
       {/* ══════════════════════════════════ */}
-      {/* FULLSCREEN PLAYER                 */}
+      {/* FULLSCREEN PLAYER                  */}
       {/* ══════════════════════════════════ */}
       <AnimatePresence>
         {showPlayer && (
@@ -832,30 +827,17 @@ export default function MovieDetail() {
 
                 {/* Server buttons with names */}
                 <div className="flex gap-1 flex-wrap">
-                  {(streams.length > 0
-                    ? streams
-                    : SOURCES(
-                        isTV ? 'tv' : 'movie',
-                        id,
-                        selectedSeason,
-                        selectedEpisode
-                      )
-                  ).map((source, i) => (
+                  {sources.map((source, i) => (
                     <button
                       key={i}
-                      onClick={() => {
-                        setSourceIndex(i);
-                        setCurrentStream(source);
-                        setIframeReady(false);
-                        setShowLoader(true);
-                      }}
+                      onClick={() => switchServer(i)}
                       className={`text-xs px-3 py-1 rounded-full transition-all ${
                         sourceIndex === i
                           ? 'bg-primary text-black font-bold'
                           : 'bg-white/10 text-gray-400 hover:bg-white/20'
                       }`}
                     >
-                      {source.name}
+                      {source.name || `S${i + 1}`}
                     </button>
                   ))}
                 </div>
@@ -906,7 +888,7 @@ export default function MovieDetail() {
               </motion.button>
             </div>
 
-            {/* Player Body — NO sandbox, referrerPolicy used for redirect protection */}
+            {/* Player Body */}
             <div className="flex-1 relative bg-black">
               <AnimatePresence>
                 {showLoader && (
@@ -924,13 +906,17 @@ export default function MovieDetail() {
               {iframeReady && (
                 <iframe
                   key={`${sourceIndex}-${selectedSeason}-${selectedEpisode}`}
-                  src={currentStream?.url}
+                  src={sources[sourceIndex]?.url}
                   className="w-full h-full"
                   allowFullScreen
-                  allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
+                  allow="autoplay; fullscreen; picture-in-picture; encrypted-media; accelerometer; gyroscope"
                   referrerPolicy="strict-origin"
                   title={title}
                   style={{ border: 'none' }}
+                  onError={() => {
+                    toast.error('Server unavailable — trying next one...');
+                    handleTryNextServer();
+                  }}
                 />
               )}
             </div>
@@ -957,142 +943,35 @@ export default function MovieDetail() {
         )}
       </AnimatePresence>
 
-      {/* ─── TRAILER MODAL ─── */}
+      {/* ─── Task 4D: Rating Prompt Overlay ─── */}
       <AnimatePresence>
-        {showTrailer && trailer && (
+        {showRatingPrompt && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-xl flex items-center justify-center p-4"
-            onClick={() => setShowTrailer(false)}
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[110] glass border border-primary/40 rounded-2xl px-6 py-4 shadow-2xl shadow-primary/20 flex flex-col items-center gap-2"
           >
-            <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.8, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-4xl rounded-2xl overflow-hidden border border-white/10 shadow-2xl"
-            >
-              <div className="flex items-center justify-between px-5 py-3 bg-black border-b border-white/10">
-                <span
-                  className="text-white font-bold"
-                  style={{ fontFamily: 'Bebas Neue, sans-serif' }}
-                >
-                  🎬 OFFICIAL TRAILER — {title?.toUpperCase()}
-                </span>
-                <motion.button
-                  whileHover={{ scale: 1.1, rotate: 90 }}
-                  onClick={() => setShowTrailer(false)}
-                  className="w-8 h-8 rounded-full bg-white/10 hover:bg-red-500 flex items-center justify-center text-white transition-colors"
-                >
-                  <FiX />
-                </motion.button>
-              </div>
-
-              <div
-                className="relative w-full"
-                style={{ paddingBottom: '56.25%' }}
-              >
-                <iframe
-                  src={`https://www.youtube.com/embed/${trailer.key}?autoplay=1&rel=0&modestbranding=1&showinfo=0`}
-                  className="absolute inset-0 w-full h-full"
-                  allowFullScreen
-                  allow="autoplay; fullscreen"
-                  title={`${title} Trailer`}
-                  style={{ border: 'none' }}
-                />
-              </div>
-
-              <div className="px-5 py-2 bg-black border-t border-white/10 flex justify-between">
-                <p className="text-gray-500 text-xs">
-                  Watching inside Movie Zone ✅
-                </p>
-                <p className="text-primary text-xs font-bold">MOVIE ZONE</p>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ─── SCHEDULE MODAL ─── */}
-      <AnimatePresence>
-        {showSchedule && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-xl flex items-center justify-center p-4"
-            onClick={() => setShowSchedule(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.8, opacity: 0, y: 40 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.8, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md glass rounded-2xl border border-white/10 overflow-hidden shadow-2xl"
-            >
-              <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
-                <div className="flex items-center gap-3">
-                  <FiCalendar className="text-primary text-xl" />
-                  <span className="text-white font-bold">Schedule Movie</span>
-                </div>
+            <p className="text-white text-sm font-bold">
+              Share your thoughts? Rate this! ⭐
+            </p>
+            <div className="flex gap-2 text-2xl">
+              {[1, 2, 3, 4, 5].map((star) => (
                 <button
-                  onClick={() => setShowSchedule(false)}
-                  className="w-8 h-8 rounded-full bg-white/10 hover:bg-red-500 flex items-center justify-center text-white transition-colors"
+                  key={star}
+                  onMouseEnter={() => setHoverStar(star)}
+                  onMouseLeave={() => setHoverStar(0)}
+                  onClick={() => handleRateMovie(star)}
+                  className="transition-transform hover:scale-125"
                 >
-                  <FiX />
-                </button>
-              </div>
-
-              <div className="px-6 py-4 border-b border-white/10">
-                <div className="flex items-center gap-4">
-                  <img
-                    src={`${IMAGE_BASE}${details.poster_path}`}
-                    alt={title}
-                    className="w-14 h-20 object-cover rounded-lg"
+                  <AiFillStar
+                    className={
+                      star <= hoverStar ? 'text-gold' : 'text-gray-600'
+                    }
                   />
-                  <div>
-                    <p className="text-white font-bold">{title}</p>
-                    <p className="text-gray-400 text-sm">{year}</p>
-                    <div className="flex items-center gap-1 mt-1">
-                      <AiFillStar className="text-gold text-xs" />
-                      <span className="text-gold text-xs">
-                        {details.vote_average?.toFixed(1)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="px-6 py-4 space-y-4">
-                <div>
-                  <label className="block text-gray-400 text-sm mb-2">
-                    Select date and time:
-                  </label>
-                  <input
-                    type="datetime-local"
-                    value={scheduleDateTime}
-                    onChange={(e) => setScheduleDateTime(e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 focus:border-primary rounded-xl px-4 py-3 text-white outline-none transition-all text-sm"
-                    min={new Date().toISOString().slice(0, 16)}
-                  />
-                </div>
-
-                <button
-                  onClick={handleSchedule}
-                  className="w-full bg-primary text-black font-bold py-3 rounded-xl text-sm tracking-wider hover:shadow-lg hover:shadow-primary/40 transition-all"
-                >
-                  📅 Save Schedule
                 </button>
-              </div>
-
-              <div className="px-6 py-3 border-t border-white/10 text-center">
-                <p className="text-gray-500 text-xs">
-                  You'll receive a reminder when it's time to watch.
-                </p>
-              </div>
-            </motion.div>
+              ))}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -1106,4 +985,3 @@ export default function MovieDetail() {
     </div>
   );
 }
-
