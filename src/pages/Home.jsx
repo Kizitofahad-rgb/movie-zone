@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
+import { useEffect, useRef, useState } from 'react';
+import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion';
 import HeroSection from '../components/HeroSection';
 import MovieRow from '../components/MovieRow';
 import { useNotifications } from '../hooks/useNotifications';
@@ -14,231 +14,215 @@ import {
   getNatureDocumentaries,
 } from '../services/tmdb';
 
-// Mood picker data 
-const moods = [
-  { emoji: '😂', label: 'Feeling Funny', genre: 35 },
-  { emoji: '😱', label: 'Thrill Me', genre: 27 },
-  { emoji: '🥹', label: 'Real touching', genre: 18 },
-  { emoji: '🚀', label: 'Sci-Fi Vibes', genre: 878 },
-  { emoji: '❤️', label: 'Love-life', genre: 10749 },
-  { emoji: '🧙', label: 'Fantasy', genre: 14 },
-];
+// ─── Particle Background ───
+function Particles() {
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    let w, h;
+    let particles = [];
+    const count = 80;
+
+    const resize = () => {
+      w = canvas.width = window.innerWidth;
+      h = canvas.height = window.innerHeight;
+    };
+    window.addEventListener('resize', resize);
+    resize();
+
+    for (let i = 0; i < count; i++) {
+      particles.push({
+        x: Math.random() * w,
+        y: Math.random() * h,
+        vx: (Math.random() - 0.5) * 0.5,
+        vy: (Math.random() - 0.5) * 0.5,
+        r: Math.random() * 2 + 1,
+        color: `rgba(0,212,255,${Math.random() * 0.3 + 0.1})`,
+      });
+    }
+
+    let animationId;
+    const draw = () => {
+      ctx.clearRect(0, 0, w, h);
+      particles.forEach((p) => {
+        p.x += p.vx;
+        p.y += p.vy;
+        if (p.x > w) p.x = 0;
+        if (p.x < 0) p.x = w;
+        if (p.y > h) p.y = 0;
+        if (p.y < 0) p.y = h;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = p.color;
+        ctx.fill();
+      });
+      animationId = requestAnimationFrame(draw);
+    };
+    draw();
+
+    return () => {
+      window.removeEventListener('resize', resize);
+      if (animationId) cancelAnimationFrame(animationId);
+    };
+  }, []);
+
+  return <canvas ref={canvasRef} className="fixed inset-0 pointer-events-none z-0" />;
+}
+
+// ─── Genre fetchers ───
+const getMoviesByGenre = async (genreId) => {
+  const apiKey = import.meta.env.VITE_TMDB_API_KEY;
+  if (!apiKey) return { results: [] };
+  const res = await fetch(
+    `https://api.themoviedb.org/3/discover/movie?api_key=${apiKey}&with_genres=${genreId}&sort_by=popularity.desc&page=1`
+  );
+  if (!res.ok) return { results: [] };
+  return res.json();
+};
+
+const getOldCartoons = async () => {
+  const apiKey = import.meta.env.VITE_TMDB_API_KEY;
+  if (!apiKey) return { results: [] };
+  const res = await fetch(
+    `https://api.themoviedb.org/3/discover/movie?api_key=${apiKey}&with_genres=16&release_date.lte=2000-01-01&sort_by=popularity.desc&page=1`
+  );
+  if (!res.ok) return { results: [] };
+  return res.json();
+};
 
 export default function Home() {
   const { notifyNewContent } = useNotifications();
   const notified = useRef(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
 
-  // Show "new content" toast once on home page load
+  const { scrollY } = useScroll();
+  // useTransform is not used but kept for future – you can remove if not needed.
+
   useEffect(() => {
     if (!notified.current) {
       notifyNewContent();
       notified.current = true;
     }
-  }, [notifyNewContent]);
+    const unsub = scrollY.onChange((v) => {
+      setShowScrollTop(v > 400);
+    });
+    return () => unsub();
+  }, [notifyNewContent, scrollY]);
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // ── Row config ──
+  const rows = [
+    { title: 'Trending This Week', emoji: '🔥', fetch: () => getTrending('all', 'week') },
+    { title: 'African Spotlight', emoji: '🌍', fetch: () => getAfricanMovies('ALL') },
+    { title: 'Wild Zone — Nature Documentaries', emoji: '🦁', fetch: getNatureDocumentaries },
+    { title: 'Now Playing in Cinemas', emoji: '🎭', fetch: getNowPlaying },
+    { title: 'Top Rated Movies', emoji: '⭐', fetch: getTopRatedMovies },
+    { title: 'Popular Series', emoji: '📺', fetch: getPopularSeries },
+    { title: 'Animations', emoji: '🎨', fetch: getAnimations },
+    { title: 'Popular Movies', emoji: '🍿', fetch: getPopularMovies },
+    { title: 'Action', emoji: '💥', fetch: () => getMoviesByGenre(28) },
+    { title: 'Horror', emoji: '👻', fetch: () => getMoviesByGenre(27) },
+    { title: 'Adventure', emoji: '🗺️', fetch: () => getMoviesByGenre(12) },
+    { title: 'Love', emoji: '❤️', fetch: () => getMoviesByGenre(10749) },
+    { title: 'Fantasy', emoji: '🧙', fetch: () => getMoviesByGenre(14) },
+    { title: 'Gangster', emoji: '🔫', fetch: () => getMoviesByGenre(80) },
+    { title: 'Superhero', emoji: '🦸', fetch: () => getMoviesByGenre(878) },
+    { title: 'Old Cartoons', emoji: '📽️', fetch: getOldCartoons },
+  ];
 
   return (
-    <div className="min-h-screen bg-dark">
+    <div className="min-h-screen bg-dark relative overflow-hidden">
+      {/* Particle Background */}
+      <Particles />
 
-      {/* HERO */}
-      <HeroSection />
+      {/* Main Content */}
+      <div className="relative z-10">
+        <HeroSection />
 
-      {/* MOOD PICKER */}
-      <motion.section
-        initial={{ opacity: 0, y: 40 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        className="max-w-7xl mx-auto px-4 sm:px-8 py-12"
-      >
-        <div className="text-center mb-8">
-          <h2 className="text-2xl md:text-3xl font-bold text-white mb-2">
-            🎭 What's Your Mood Tonight?
-          </h2>
-          <p className="text-gray-400 text-sm">Pick a vibe and we'll find your perfect watch</p>
-        </div>
+        {/* Stats Banner */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          whileInView={{ opacity: 1 }}
+          viewport={{ once: true }}
+          className="relative overflow-hidden py-8 mb-4"
+          style={{
+            background: 'linear-gradient(135deg, rgba(0,212,255,0.12), rgba(255,215,0,0.08))',
+            borderTop: '1px solid rgba(0,212,255,0.2)',
+            borderBottom: '1px solid rgba(0,212,255,0.2)',
+          }}
+        >
+          <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-transparent to-primary/5 animate-pulse" />
+          <div className="max-w-7xl mx-auto px-8 grid grid-cols-2 md:grid-cols-4 gap-6 text-center relative z-10">
+            {[
+              { value: '10K+', label: 'Movies & Series', emoji: '🎬' },
+              { value: '100%', label: 'Ad Free Experience', emoji: '🚫' },
+              { value: '4K', label: 'Ultra HD Quality', emoji: '📺' },
+              { value: '24/7', label: 'Always Available', emoji: '⚡' },
+            ].map((stat, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1 }}
+                className="flex flex-col items-center"
+              >
+                <span className="text-2xl mb-1">{stat.emoji}</span>
+                <span className="text-2xl md:text-3xl font-black gradient-text">
+                  {stat.value}
+                </span>
+                <span className="text-gray-400 text-xs mt-1">{stat.label}</span>
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
 
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
-          {moods.map((mood, i) => (
-            <motion.button
-              key={mood.genre}
-              initial={{ opacity: 0, scale: 0.8 }}
-              whileInView={{ opacity: 1, scale: 1 }}
-              whileHover={{
-                scale: 1.08,
-                boxShadow: '0 0 25px rgba(0,212,255,0.4)',
-              }}
-              whileTap={{ scale: 0.95 }}
-              viewport={{ once: true }}
-              transition={{ delay: i * 0.08 }}
-              className="glass rounded-2xl p-4 flex flex-col items-center gap-2 border border-white/10 hover:border-primary/60 cursor-pointer group transition-all"
-            >
-              <span className="text-3xl group-hover:scale-110 transition-transform">
-                {mood.emoji}
-              </span>
-              <span className="text-xs text-gray-400 group-hover:text-primary transition-colors text-center leading-tight">
-                {mood.label}
-              </span>
-            </motion.button>
-          ))}
-        </div>
-      </motion.section>
-
-      {/* STATS BANNER */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        whileInView={{ opacity: 1 }}
-        viewport={{ once: true }}
-        className="relative overflow-hidden py-8 mb-4"
-        style={{
-          background: 'linear-gradient(135deg, rgba(0,212,255,0.08), rgba(255,215,0,0.05))',
-          borderTop: '1px solid rgba(0,212,255,0.15)',
-          borderBottom: '1px solid rgba(0,212,255,0.15)',
-        }}
-      >
-        <div className="max-w-7xl mx-auto px-8 grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
-          {[
-            { value: '10K+', label: 'Movies & Series', emoji: '🎬' },
-            { value: '100%', label: 'Ad Free Experience', emoji: '🚫' },
-            { value: '4K', label: 'Ultra HD Quality', emoji: '📺' },
-            { value: '24/7', label: 'Always Available', emoji: '⚡' },
-          ].map((stat, i) => (
+        {/* Movie Rows */}
+        <div className="py-6 space-y-6 perspective-container">
+          {rows.map((row, index) => (
             <motion.div
-              key={i}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: i * 0.1 }}
-              className="flex flex-col items-center"
+              key={row.title}
+              initial={{ opacity: 0, y: 40, rotateX: -5 }}
+              whileInView={{ opacity: 1, y: 0, rotateX: 0 }}
+              viewport={{ once: true, amount: 0.1 }}
+              transition={{ delay: index * 0.05, duration: 0.5 }}
+              whileHover={{ scale: 1.01, rotateX: 2, rotateY: 2 }}
+              className="transform-gpu transition-transform duration-300"
+              style={{ perspective: '1200px' }}
             >
-              <span className="text-2xl mb-1">{stat.emoji}</span>
-              <span className="text-2xl md:text-3xl font-black gradient-text">
-                {stat.value}
-              </span>
-              <span className="text-gray-400 text-xs mt-1">{stat.label}</span>
+              <MovieRow
+                title={row.title}
+                emoji={row.emoji}
+                fetchFn={row.fetch}
+              />
             </motion.div>
           ))}
         </div>
-      </motion.div>
-
-      {/* MOVIE ROWS */}
-      <div className="py-6 space-y-4">
-        <MovieRow
-          title="Trending This Week"
-          emoji="🔥"
-          fetchFn={() => getTrending('all', 'week')}
-        />
-        <MovieRow
-          title="African Spotlight"
-          emoji="🌍"
-          fetchFn={() => getAfricanMovies('ALL')}
-        />
-        <MovieRow
-          title="Wild Zone — Nature Documentaries"
-          emoji="🦁"
-          fetchFn={getNatureDocumentaries}
-        />
-        <MovieRow
-          title="Now Playing in Cinemas"
-          emoji="🎭"
-          fetchFn={getNowPlaying}
-        />
-        <MovieRow
-          title="Top Rated Movies"
-          emoji="⭐"
-          fetchFn={getTopRatedMovies}
-        />
-        <MovieRow
-          title="Popular Series"
-          emoji="📺"
-          fetchFn={getPopularSeries}
-        />
-        <MovieRow
-          title="Animations"
-          emoji="🎨"
-          fetchFn={getAnimations}
-        />
-        <MovieRow
-          title="Popular Movies"
-          emoji="🍿"
-          fetchFn={getPopularMovies}
-        />
       </div>
 
-      {/* WHY MOVIE ZONE — Feature highlight */}
-      <motion.section
-        initial={{ opacity: 0, y: 40 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        className="max-w-7xl mx-auto px-4 sm:px-8 py-16"
-      >
-        <h2 className="text-3xl md:text-4xl font-black text-center mb-12">
-          Why Choose{' '}
-          <span className="gradient-text">Movie Zone?</span>
-        </h2>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[
-            {
-              icon: '🚫',
-              title: 'Zero Ads, Zero Popups',
-              desc: 'Watch without interruptions. No redirects, no annoying banners. Ever.',
-              color: '#ff4444',
-            },
-            {
-              icon: '🎯',
-              title: 'Mood-Based Discovery',
-              desc: "Tell us how you feel and we'll find the perfect movie for your vibe.",
-              color: '#00d4ff',
-            },
-            {
-              icon: '📱',
-              title: 'Watch on Any Device',
-              desc: 'Seamlessly switch from phone to desktop without losing your place.',
-              color: '#ffd700',
-            },
-            {
-              icon: '❤️',
-              title: 'Personal Watchlist',
-              desc: 'Save movies and series to watch later. Your list, your pace.',
-              color: '#ff6b9d',
-            },
-            {
-              icon: '🌍',
-              title: 'Global Content',
-              desc: 'Movies and series from every country, every language, every genre.',
-              color: '#00ff88',
-            },
-            {
-              icon: '⚡',
-              title: 'Lightning Fast',
-              desc: 'Optimized for speed. Content loads in seconds, not minutes.',
-              color: '#a855f7',
-            },
-          ].map((feature, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              whileHover={{
-                y: -8,
-                boxShadow: `0 20px 40px ${feature.color}22`,
-              }}
-              viewport={{ once: true }}
-              transition={{ delay: i * 0.1 }}
-              className="glass rounded-2xl p-6 border border-white/10 cursor-default"
-              style={{ borderColor: `${feature.color}22` }}
-            >
-              <div
-                className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl mb-4"
-                style={{ background: `${feature.color}22` }}
-              >
-                {feature.icon}
-              </div>
-              <h3 className="text-white font-bold text-lg mb-2">{feature.title}</h3>
-              <p className="text-gray-400 text-sm leading-relaxed">{feature.desc}</p>
-            </motion.div>
-          ))}
-        </div>
-      </motion.section>
+      {/* Scroll to Top */}
+      <AnimatePresence>
+        {showScrollTop && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.5, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.5, y: 20 }}
+            onClick={scrollToTop}
+            className="fixed bottom-8 right-8 z-50 w-14 h-14 rounded-full bg-primary/20 backdrop-blur-lg border border-primary/40 flex items-center justify-center text-white shadow-2xl shadow-primary/20 hover:scale-110 transition-all duration-300"
+            style={{ boxShadow: '0 0 30px rgba(0,212,255,0.3)' }}
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 15l7-7 7 7" />
+            </svg>
+          </motion.button>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
