@@ -28,55 +28,55 @@ const SOURCES = (type, id, season = 1, episode = 1) => {
   if (type === 'tv') {
     return [
       {
-        name: 'VidSrc Pro',
-        url: `https://vidsrc.pro/embed/tv/${id}/${season}/${episode}`,
+        name: 'VidCore',
+        url: `https://vidcore.org/embed/series/${id}/${season}/${episode}`,
       },
       {
-        name: 'VidFast',
-        url: `https://vidfast.pro/tv/${id}/${season}/${episode}?autoPlay=true&theme=00d4ff`,
+        name: 'VIDEM',
+        url: `https://videm.xyz/embed/tv/${id}/${season}/${episode}`,
       },
       {
-        name: 'Videasy',
-        url: `https://player.videasy.net/tv/${id}/${season}/${episode}?color=00d4ff&nextEpisode=true`,
+        name: 'VidNest',
+        url: `https://vidnest.fun/embed/tv/${id}/${season}/${episode}`,
+      },
+      {
+        name: 'CineSrc',
+        url: `https://cinesrc.st/embed/tv/${id}/${season}/${episode}`,
       },
       {
         name: 'VidLink',
         url: `https://vidlink.pro/tv/${id}/${season}/${episode}?primaryColor=00d4ff&secondaryColor=ffd700&player=jw&autoplay=true&nextbutton=true`,
       },
       {
-        name: '4KHDHub',
-        url: `https://4khdhub.com/player/tmdb.php?video_id=${id}&tmdb=1&type=tv&s=${season}&e=${episode}`,
-      },
-      {
-        name: 'MultiEmbed',
-        url: `https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1&s=${season}&e=${episode}`,
+        name: 'VidSrc',
+        url: `https://vidsrc.hair/embed/tv/${id}/${season}/${episode}`,
       },
     ];
   }
   return [
     {
-      name: 'VidSrc Pro',
-      url: `https://vidsrc.pro/embed/movie/${id}`,
+      name: 'VidCore',
+      url: `https://vidcore.org/embed/movie/${id}`,
     },
     {
-      name: 'VidFast',
-      url: `https://vidfast.pro/movie/${id}?autoPlay=true&theme=00d4ff`,
+      name: 'VIDEM',
+      url: `https://videm.xyz/embed/movie/${id}`,
     },
     {
-      name: 'Videasy',
-      url: `https://player.videasy.net/movie/${id}?color=00d4ff&autoplay=true`,
+      name: 'VidNest',
+      url: `https://vidnest.fun/embed/movie/${id}`,
+    },
+    {
+      name: 'CineSrc',
+      url: `https://cinesrc.st/embed/movie/${id}`,
     },
     {
       name: 'VidLink',
       url: `https://vidlink.pro/movie/${id}?primaryColor=00d4ff&secondaryColor=ffd700&player=jw&autoplay=true`,
     },
     {
-      name: '4KHDHub',
-      url: `https://4khdhub.com/player/tmdb.php?video_id=${id}&tmdb=1&type=movie`,
-    },
-    {
-      name: 'MultiEmbed',
-      url: `https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1`,
+      name: 'VidSrc',
+      url: `https://vidsrc.hair/embed/movie/${id}`,
     },
   ];
 };
@@ -125,6 +125,7 @@ export default function MovieDetail() {
   const [hoverStar, setHoverStar] = useState(0);
 
   const watchTimerRef = useRef(null);
+  const iframeLoadTimeoutRef = useRef(null);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -212,9 +213,30 @@ export default function MovieDetail() {
   const handleLoaderComplete = () => {
     setShowLoader(false);
     setIframeReady(true);
+    // Clear any timeout for iframe loading
+    if (iframeLoadTimeoutRef.current) {
+      clearTimeout(iframeLoadTimeoutRef.current);
+      iframeLoadTimeoutRef.current = null;
+    }
+  };
+
+  // Fallback: if iframe doesn't load after 15 seconds, try next server
+  const startIframeTimeout = () => {
+    if (iframeLoadTimeoutRef.current) clearTimeout(iframeLoadTimeoutRef.current);
+    iframeLoadTimeoutRef.current = setTimeout(() => {
+      if (!iframeReady) {
+        toast.error('Server taking too long — switching to next...');
+        handleTryNextServer();
+      }
+    }, 15000);
   };
 
   const handleTryNextServer = () => {
+    // Clear any existing timeout
+    if (iframeLoadTimeoutRef.current) {
+      clearTimeout(iframeLoadTimeoutRef.current);
+      iframeLoadTimeoutRef.current = null;
+    }
     if (sourceIndex < sources.length - 1) {
       const next = sourceIndex + 1;
       setIframeReady(false);
@@ -223,6 +245,7 @@ export default function MovieDetail() {
       setTimeout(() => {
         setShowLoader(false);
         setIframeReady(true);
+        startIframeTimeout();
       }, 4200);
       toast(`Trying Server ${next + 1}...`, { icon: '🔄' });
     } else {
@@ -231,12 +254,17 @@ export default function MovieDetail() {
   };
 
   const switchServer = (i) => {
+    if (iframeLoadTimeoutRef.current) {
+      clearTimeout(iframeLoadTimeoutRef.current);
+      iframeLoadTimeoutRef.current = null;
+    }
     setSourceIndex(i);
     setIframeReady(false);
     setShowLoader(true);
     setTimeout(() => {
       setShowLoader(false);
       setIframeReady(true);
+      startIframeTimeout();
     }, 4200);
   };
 
@@ -260,6 +288,10 @@ export default function MovieDetail() {
     setShowLoader(false);
     setIframeReady(false);
     if (watchTimerRef.current) clearTimeout(watchTimerRef.current);
+    if (iframeLoadTimeoutRef.current) {
+      clearTimeout(iframeLoadTimeoutRef.current);
+      iframeLoadTimeoutRef.current = null;
+    }
 
     if (user && details) {
       setShowRatingPrompt(true);
@@ -910,12 +942,16 @@ export default function MovieDetail() {
                   className="w-full h-full"
                   allowFullScreen
                   allow="autoplay; fullscreen; picture-in-picture; encrypted-media; accelerometer; gyroscope"
-                  referrerPolicy="strict-origin"
+                  referrerPolicy="no-referrer"
                   title={title}
                   style={{ border: 'none' }}
                   onError={() => {
-                    toast.error('Server unavailable — trying next one...');
+                    toast.error('Server error — trying next...');
                     handleTryNextServer();
+                  }}
+                  onLoad={() => {
+                    // If iframe loads but content is empty, we still mark ready
+                    // but we already have the timeout fallback
                   }}
                 />
               )}
@@ -939,6 +975,41 @@ export default function MovieDetail() {
                 MOVIE ZONE
               </p>
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ─── TRAILER MODAL ─── */}
+      <AnimatePresence>
+        {showTrailer && trailer && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] bg-black/90 flex items-center justify-center p-4"
+            onClick={() => setShowTrailer(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              className="relative w-full max-w-4xl aspect-video rounded-xl overflow-hidden shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <iframe
+                src={`https://www.youtube.com/embed/${trailer.key}?autoplay=1&rel=0`}
+                className="w-full h-full"
+                allow="autoplay; encrypted-media; fullscreen"
+                allowFullScreen
+                title="Trailer"
+              />
+              <button
+                onClick={() => setShowTrailer(false)}
+                className="absolute top-4 right-4 w-10 h-10 rounded-full bg-black/60 hover:bg-black/80 flex items-center justify-center text-white transition-colors"
+              >
+                <FiX className="text-2xl" />
+              </button>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
