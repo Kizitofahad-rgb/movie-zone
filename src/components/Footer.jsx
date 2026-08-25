@@ -5,7 +5,7 @@ import { FiGithub, FiTwitter, FiInstagram } from 'react-icons/fi';
 
 export default function Footer() {
   return (
-    <footer className="bg-black/80 border-t border-white/5 mt-16">
+    <footer className="bg-black/90 border-t border-white/5 mt-16">
       <div className="max-w-7xl mx-auto px-6 sm:px-10 py-12">
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8 mb-10">
 
@@ -22,6 +22,10 @@ export default function Footer() {
             <p className="text-gray-500 text-sm leading-relaxed">
               Your ultimate destination for movies, series and animations.
               Built different. Watched better.
+            </p>
+            {/* ─── CREDIT LINE ─── */}
+            <p className="text-gray-600 text-xs mt-4 tracking-wide">
+              Created by <span className="text-primary font-semibold">BRONX company</span> • 2026
             </p>
           </div>
 
@@ -92,11 +96,14 @@ export default function Footer() {
           <p className="text-gray-600 text-xs">
             © 2025 Movie Zone. For entertainment purposes only. All content belongs to respective owners.
           </p>
+
           <div className="flex items-center gap-4">
-            {/* ─── GitHub ─── */}
+            {/* ─── GitHub (Kizitofahad-rgb) ─── */}
             <motion.a
               whileHover={{ scale: 1.2, color: '#00d4ff' }}
-              href="#"
+              href="https://github.com/Kizitofahad-rgb"
+              target="_blank"
+              rel="noopener noreferrer"
               className="text-gray-600 hover:text-primary transition-colors"
             >
               <FiGithub className="text-lg" />
@@ -111,7 +118,7 @@ export default function Footer() {
               <FiTwitter className="text-lg" />
             </motion.a>
 
-            {/* ─── Instagram ─── 👇 UPDATED WITH YOUR USERNAME ─── */}
+            {/* ─── Instagram ─── */}
             <motion.a
               whileHover={{ scale: 1.2, color: '#00d4ff' }}
               href="https://instagram.com/moviezone.app"
