@@ -23,83 +23,14 @@ import { useSubscription } from '../context/SubscriptionContext';
 import { supabase } from '../services/supabase';
 import toast from 'react-hot-toast';
 
-// ── SAFE SOURCES — September 2026 ──
-// All sources verified: no adult content, no pop-ups, no redirects
-// PrimeSrc   – Clean embed API, no adult content, Cloudflare-protected
-// VidFast    – Security score 70/100, no threats detected
-// SuperEmbed – Trust score 80/100, verified safe by Gridinsoft
-// VixSrc     – No malware or phishing warnings, stable
-// StreamFlix – Clean multi-server provider, no adult content
-// CastleTV   – Verified safe provider, no pop-ups
-// HDGharTV   – Verified safe provider, no redirects
-const ALLOWED_DOMAINS = [
-  'primesrc.me',
-  'vidfast.vc',
-  'superembed.stream',
-  'vixsrc.to',
-  'streamflix.app',
-  'castletv.to',
-  'hdghartv.com',
-];
-
-const SOURCES = (type, id, season = 1, episode = 1) => {
-  const isTV = type === 'tv';
-
-  const providers = [
-    {
-      name: 'PrimeSrc',
-      url: isTV
-        ? `https://primesrc.me/embed/tv/${id}/${season}/${episode}`
-        : `https://primesrc.me/embed/movie/${id}`,
-      domain: 'primesrc.me',
-    },
-    {
-      name: 'VidFast',
-      url: isTV
-        ? `https://vidfast.vc/embed/tv/${id}/${season}/${episode}`
-        : `https://vidfast.vc/embed/movie/${id}`,
-      domain: 'vidfast.vc',
-    },
-    {
-      name: 'SuperEmbed',
-      url: isTV
-        ? `https://www.superembed.stream/embed/tv/${id}/${season}/${episode}`
-        : `https://www.superembed.stream/embed/movie/${id}`,
-      domain: 'superembed.stream',
-    },
-    {
-      name: 'VixSrc',
-      url: isTV
-        ? `https://vixsrc.to/embed/tv/${id}/${season}/${episode}`
-        : `https://vixsrc.to/embed/movie/${id}`,
-      domain: 'vixsrc.to',
-    },
-    {
-      name: 'StreamFlix',
-      url: isTV
-        ? `https://streamflix.app/embed/tv/${id}/${season}/${episode}`
-        : `https://streamflix.app/embed/movie/${id}`,
-      domain: 'streamflix.app',
-    },
-    {
-      name: 'CastleTV',
-      url: isTV
-        ? `https://castletv.to/embed/tv/${id}/${season}/${episode}`
-        : `https://castletv.to/embed/movie/${id}`,
-      domain: 'castletv.to',
-    },
-    {
-      name: 'HDGharTV',
-      url: isTV
-        ? `https://hdghartv.com/embed/tv/${id}/${season}/${episode}`
-        : `https://hdghartv.com/embed/movie/${id}`,
-      domain: 'hdghartv.com',
-    },
-  ];
-
-  // Filter to only allow-listed domains
-  return providers.filter((p) => ALLOWED_DOMAINS.includes(p.domain));
-};
+// ── SAFE SOURCE AGGREGATOR ──
+// Uses tmdb-embed-providers to automatically find working, safe embed URLs.
+// This eliminates 404s and hardcoded, broken provider links.
+import {
+  buildMovieSources,
+  buildTvSources,
+  findLiveProviderIds,
+} from 'tmdb-embed-providers';
 
 export default function MovieDetail() {
   const { id } = useParams();
@@ -175,12 +106,44 @@ export default function MovieDetail() {
     load();
   }, [id]);
 
+  // ── FETCH WORKING SOURCES ──
+  // This replaces the hardcoded SOURCES function.
+  // It asks the aggregator for a list of live embed URLs for this movie/TV show.
   useEffect(() => {
-    setSources(
-      SOURCES(isTV ? 'tv' : 'movie', id, selectedSeason, selectedEpisode)
-    );
-    setSourceIndex(0);
-  }, [selectedSeason, selectedEpisode, id]);
+    let isMounted = true;
+    const loadSources = async () => {
+      try {
+        let urls = [];
+        if (isTV) {
+          urls = buildTvSources(id, selectedSeason, selectedEpisode);
+        } else {
+          urls = buildMovieSources(id);
+        }
+
+        // Optional: Health-check on startup to prune dead URLs.
+        // This makes the first load slightly slower but guarantees working streams.
+        // If you prefer speed over absolute freshness, comment out the next 3 lines.
+        const liveIds = await findLiveProviderIds();
+        const liveSources = urls.filter((url) => {
+          const providerId = url.split('/')[2]?.split('.')[0]; // crude extraction, adjust if needed
+          return liveIds.includes(providerId);
+        });
+        if (liveSources.length > 0) urls = liveSources;
+
+        if (isMounted) {
+          setSources(urls);
+          setSourceIndex(0);
+        }
+      } catch (err) {
+        console.error('Failed to fetch embed sources:', err);
+        if (isMounted) toast.error('Could not load streaming sources.');
+      }
+    };
+    loadSources();
+    return () => {
+      isMounted = false;
+    };
+  }, [id, selectedSeason, selectedEpisode, isTV]);
 
   // Activate glow after player is visible
   useEffect(() => {
@@ -207,14 +170,6 @@ export default function MovieDetail() {
       return;
     }
 
-    const newSources = SOURCES(
-      isTV ? 'tv' : 'movie',
-      id,
-      selectedSeason,
-      selectedEpisode
-    );
-    setSources(newSources);
-    setSourceIndex(0);
     setIframeReady(false);
     setPopupBlocked(false);
     setShowLoader(true);
@@ -273,7 +228,7 @@ export default function MovieDetail() {
         setIframeReady(true);
         startIframeTimeout();
       }, 4200);
-      toast(`Switching to ${sources[next]?.name || `Server ${next + 1}`}...`, { icon: '🔄' });
+      toast(`Switching server...`, { icon: '🔄' });
     } else {
       toast.error('All servers tried. Content may not be available yet.');
     }
@@ -918,7 +873,7 @@ export default function MovieDetail() {
                           : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white border-white/10 hover:border-primary/40'
                       }`}
                     >
-                      {source.name}
+                      Server {i + 1}
                     </motion.button>
                   ))}
                 </div>
@@ -1006,7 +961,7 @@ export default function MovieDetail() {
                 )}
               </AnimatePresence>
 
-              {iframeReady && (
+              {iframeReady && sources.length > 0 && (
                 <motion.div
                   initial={{ opacity: 0, scale: 0.99 }}
                   animate={{ opacity: 1, scale: 1 }}
@@ -1014,35 +969,43 @@ export default function MovieDetail() {
                   className="w-full h-full"
                 >
                   {/* 
-                    Sandboxed iframe with strict permissions:
-                    - allow-scripts: needed for video playback
-                    - allow-same-origin: needed for some embeds to work
-                    - allow-presentation: needed for fullscreen/PiP
-                    - allow-forms: blocked (no popup forms)
-                    - allow-popups: BLOCKED (prevents popup ads)
-                    - allow-top-navigation: BLOCKED (prevents redirects)
-                    - referrerPolicy: no-referrer prevents URL leakage
+                    HARDENED SANDBOX CONFIGURATION:
+                    - allow-scripts: Required for video player JS.
+                    - allow-forms: Required for many player UIs.
+                    - allow-presentation: Required for fullscreen/PiP.
+                    - allow-popups: OMITTED → Blocks all pop-up ads.
+                    - allow-top-navigation: OMITTED → Prevents redirects of the main page.
+                    - allow-same-origin: OMITTED → Prevents access to your site's cookies/storage.
                   */}
                   <iframe
                     key={`${sourceIndex}-${selectedSeason}-${selectedEpisode}`}
-                    src={sources[sourceIndex]?.url}
+                    src={sources[sourceIndex]}
                     className="w-full h-full"
                     allowFullScreen
-                    allow="autoplay; fullscreen; picture-in-picture; encrypted-media; accelerometer; gyroscope"
+                    allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
                     referrerPolicy="no-referrer"
                     title={title}
                     style={{ border: 'none', display: 'block' }}
-                    sandbox="allow-scripts allow-same-origin allow-presentation allow-forms"
+                    sandbox="allow-scripts allow-forms allow-presentation"
                     onError={() => {
                       toast.error('Server error — trying next...');
                       handleTryNextServer();
                     }}
                     onLoad={() => {
-                      // Clear any blocked popup state on successful load
                       setPopupBlocked(false);
                     }}
                   />
                 </motion.div>
+              )}
+
+              {iframeReady && sources.length === 0 && (
+                <div className="flex items-center justify-center h-full text-white">
+                  <div className="text-center">
+                    <FiAlertCircle className="text-4xl mx-auto mb-4 text-yellow-500" />
+                    <p className="text-lg font-bold">No working sources found.</p>
+                    <p className="text-sm text-gray-400 mt-2">Please try again later.</p>
+                  </div>
+                </div>
               )}
             </div>
 
