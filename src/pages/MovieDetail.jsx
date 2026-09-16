@@ -27,10 +27,10 @@ import toast from 'react-hot-toast';
 const SOURCES = (type, id, season = 1, episode = 1) => {
   if (type === 'tv') {
     return [
-      {
+     /* {
         name: 'VidCore',
         url: `https://vidcore.org/embed/series/${id}/${season}/${episode}`,
-      },
+      },*/
       {
         name: 'VIDEM',
         url: `https://videm.xyz/embed/tv/${id}/${season}/${episode}`,
@@ -54,10 +54,10 @@ const SOURCES = (type, id, season = 1, episode = 1) => {
     ];
   }
   return [
-    {
+   /* {
       name: 'VidCore',
       url: `https://vidcore.org/embed/movie/${id}`,
-    },
+    },*/
     {
       name: 'VIDEM',
       url: `https://videm.xyz/embed/movie/${id}`,
