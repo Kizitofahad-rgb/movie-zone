@@ -35,7 +35,7 @@ const SOURCES = (type, id, season = 1, episode = 1) => {
         name: 'VIDEM',
         url: `https://videm.xyz/embed/tv/${id}/${season}/${episode}`,
       },
-      {
+     /* {
         name: 'VidNest',
         url: `https://vidnest.fun/embed/tv/${id}/${season}/${episode}`,
       },
@@ -50,7 +50,7 @@ const SOURCES = (type, id, season = 1, episode = 1) => {
       {
         name: 'VidSrc',
         url: `https://vidsrc.hair/embed/tv/${id}/${season}/${episode}`,
-      },
+      },*/
     ];
   }
   return [
@@ -62,7 +62,7 @@ const SOURCES = (type, id, season = 1, episode = 1) => {
       name: 'VIDEM',
       url: `https://videm.xyz/embed/movie/${id}`,
     },
-    {
+   /* {
       name: 'VidNest',
       url: `https://vidnest.fun/embed/movie/${id}`,
     },
@@ -77,7 +77,7 @@ const SOURCES = (type, id, season = 1, episode = 1) => {
     {
       name: 'VidSrc',
       url: `https://vidsrc.hair/embed/movie/${id}`,
-    },
+    },*/
   ];
 };
 
