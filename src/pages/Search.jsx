@@ -224,13 +224,13 @@ export default function Search() {
             <AnimatePresence>
               {showSuggestions && suggestions.length > 0 && (
                 <motion.div
-                  initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                  initial={{ opacity: 0, y: -10, scale: 0.98 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                  transition={{ duration: 0.15 }}
-                  className="absolute top-full left-0 right-0 mt-2 glass rounded-2xl border border-white/10 shadow-2xl overflow-hidden z-50"
+                  exit={{ opacity: 0, y: -10, scale: 0.98 }}
+                  transition={{ duration: 0.2, ease: 'easeOut' }}
+                  className="absolute top-full left-0 right-0 mt-3 rounded-2xl bg-slate-900/90 border border-slate-700/60 backdrop-blur-xl shadow-2xl shadow-black/80 overflow-hidden z-50 divide-y divide-slate-800/60"
                 >
-                  <div className="p-2 max-h-80 overflow-y-auto">
+                  <div className="p-2 space-y-1 max-h-88 overflow-y-auto custom-scrollbar">
                     {suggestions.map((item, i) => (
                       <motion.button
                         key={item.id}
@@ -238,38 +238,42 @@ export default function Search() {
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: i * 0.03 }}
                         onClick={() => handleSuggestionClick(item)}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/10 transition-colors text-left"
+                        className="group w-full flex items-center gap-3.5 px-3 py-2.5 rounded-xl hover:bg-gradient-to-r hover:from-white/10 hover:to-white/5 transition-all duration-200 text-left"
                       >
                         {item.poster_path ? (
                           <img
                             src={`https://image.tmdb.org/t/p/w92${item.poster_path}`}
                             alt={item.title || item.name}
-                            className="w-12 h-16 object-cover rounded-lg flex-shrink-0"
+                            className="w-11 h-16 object-cover rounded-lg flex-shrink-0 shadow-md border border-white/10 group-hover:border-amber-400/50 transition-colors"
                           />
                         ) : (
-                          <div className="w-12 h-16 rounded-lg bg-darkCard flex items-center justify-center text-2xl flex-shrink-0">
+                          <div className="w-11 h-16 rounded-lg bg-slate-800 flex items-center justify-center text-xl flex-shrink-0 border border-slate-700">
                             🎬
                           </div>
                         )}
                         <div className="flex-1 min-w-0">
-                          <p className="text-white text-sm font-medium truncate">
+                          <p className="text-white text-sm font-semibold truncate group-hover:text-amber-400 transition-colors">
                             {item.title || item.name}
                           </p>
-                          <div className="flex items-center gap-2 text-xs text-gray-400">
+                          <div className="flex items-center gap-2 mt-1 text-xs text-slate-400">
                             <span>
                               {(item.release_date || item.first_air_date || '').split('-')[0] || 'N/A'}
                             </span>
-                            <span className="capitalize px-1.5 py-0.5 rounded bg-primary/20 text-primary text-[10px] font-bold">
+                            <span className="capitalize px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-amber-400 text-[10px] font-semibold tracking-wide">
                               {item.media_type === 'tv' ? 'Series' : 'Movie'}
                             </span>
                           </div>
                         </div>
-                        <FiSearch className="text-gray-500 flex-shrink-0" />
+                        <FiSearch className="text-slate-500 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all flex-shrink-0" />
                       </motion.button>
                     ))}
+                  </div>
+
+                  {/* ── View All Action Bar ── */}
+                  <div className="p-2 bg-slate-950/40">
                     <button
                       onClick={handleViewAll}
-                      className="w-full mt-1 py-2.5 text-center text-sm text-primary font-bold hover:bg-primary/10 rounded-xl transition-colors border-t border-white/5"
+                      className="w-full py-2.5 px-4 text-center text-xs font-bold uppercase tracking-wider text-amber-400 hover:text-amber-300 bg-amber-400/10 hover:bg-amber-400/20 rounded-xl transition-all duration-200 flex items-center justify-center gap-2"
                     >
                       View all results for "{input.trim()}" →
                     </button>
