@@ -198,25 +198,26 @@ export default function Search() {
                   if (suggestions.length > 0) setShowSuggestions(true);
                 }}
                 placeholder="Search movies, series, animations..."
-                className="w-full bg-white/5 border border-white/20 focus:border-primary rounded-full px-6 py-4 pr-14 text-white placeholder-gray-500 outline-none text-base transition-all"
-                style={{ backdropFilter: 'blur(10px)' }}
+                className="w-full bg-slate-900/60 border border-slate-700/60 focus:border-amber-400/80 focus:ring-2 focus:ring-amber-400/20 rounded-2xl px-6 py-4 pr-24 text-white placeholder-slate-400 outline-none text-base transition-all duration-300 shadow-xl shadow-black/40 backdrop-blur-md"
                 autoFocus
               />
-              {input && (
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                {input && (
+                  <button
+                    type="button"
+                    onClick={handleClear}
+                    className="p-1.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+                  >
+                    <FiX className="text-base" />
+                  </button>
+                )}
                 <button
-                  type="button"
-                  onClick={handleClear}
-                  className="absolute right-14 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                  type="submit"
+                  className="w-10 h-10 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 rounded-xl flex items-center justify-center font-semibold shadow-md shadow-amber-500/20 transition-all duration-200 active:scale-95"
                 >
-                  <FiX className="text-lg" />
+                  <FiSearch className="text-lg" />
                 </button>
-              )}
-              <button
-                type="submit"
-                className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 bg-primary rounded-full flex items-center justify-center text-black hover:shadow-lg hover:shadow-primary/40 transition-all"
-              >
-                <FiSearch className="text-lg" />
-              </button>
+              </div>
             </form>
 
             {/* ── AUTOCOMPLETE DROPDOWN ── */}
