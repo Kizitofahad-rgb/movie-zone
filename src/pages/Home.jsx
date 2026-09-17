@@ -145,7 +145,7 @@ export default function Home() {
       <div className="relative z-10">
         <HeroSection />
 
-        {/* Stats Banner */}
+        {/* Stats Banner 
         <motion.div
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
@@ -181,7 +181,7 @@ export default function Home() {
               </motion.div>
             ))}
           </div>
-        </motion.div>
+        </motion.div> */}
 
         {/* Movie Rows */}
         <div className="py-6 space-y-6 perspective-container">
