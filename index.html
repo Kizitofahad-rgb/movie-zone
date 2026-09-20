@@ -87,5 +87,44 @@
         });
       })();
     </script>
+    
+    <!-- Movie Zone Popup & Redirect Blocker  THIS IS A NEW ONE-->
+<script>
+  (function() {
+    // Override window.open to block ALL popup attempts from iframes
+    const _originalOpen = window.open.bind(window);
+    window.open = function(url, name, features) {
+      // If it came from an iframe click, block it
+      if (document.activeElement && document.activeElement.tagName === 'IFRAME') {
+        console.log('🛑 Popup blocked from iframe:', url);
+        return null;
+      }
+      // Allow legitimate app popups (Google OAuth etc)
+      return _originalOpen(url, name, features);
+    };
+
+    // Block clicks that try to navigate away from the page
+    document.addEventListener('click', function(e) {
+      const active = document.activeElement;
+      if (active && active.tagName === 'IFRAME') {
+        // An element inside the iframe triggered a navigation
+        // This catches redirect-on-click tricks
+        e.stopPropagation();
+      }
+    }, true);
+
+    // Prevent new tab/window opens from iframes via keyboard
+    document.addEventListener('keydown', function(e) {
+      const active = document.activeElement;
+      if (active && active.tagName === 'IFRAME') {
+        if ((e.ctrlKey || e.metaKey) && e.key === 't') {
+          e.preventDefault();
+        }
+      }
+    }, true);
+
+    console.log('✅ Movie Zone popup blocker active');
+  })();
+</script>
   </body>
 </html>
