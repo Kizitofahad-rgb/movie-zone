@@ -96,7 +96,7 @@ export default function Navbar() {
     { name: 'Series', path: '/series' },
     { name: 'Animations', path: '/animations' },
     { name: '🌍 African', path: '/african' },
-    { name: '🎬 Cinemas', path: '/cinemas' }, // 👈 Task 3
+    { name: '🎬 Trailers', path: '/trailers' },
     { name: '👥 Social', path: '/social' },   // 👈 Task 4
   ];
 
