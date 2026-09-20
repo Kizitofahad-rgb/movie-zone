@@ -1,90 +1,119 @@
-import { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiUsers } from 'react-icons/fi';
-import { useAuth } from '../context/AuthContext';
+import { FiMessageCircle } from 'react-icons/fi';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../services/supabase';
+import { useAuth } from '../context/AuthContext';
 
 export default function SocialFAB() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [unreadCount, setUnreadCount] = useState(0);
+  const channelRef = useRef(null);
 
-  // Fetch unread messages count
-  const fetchUnreadCount = async () => {
+  // Hide FAB on social page and login page
+  const hiddenRoutes = ['/social', '/login', '/'];
+  const isHidden = hiddenRoutes.includes(location.pathname);
+
+  const fetchUnread = async () => {
     if (!user) return;
     try {
-      const { count, error } = await supabase
+      const { count } = await supabase
         .from('messages')
         .select('*', { count: 'exact', head: true })
         .eq('receiver_id', user.id)
         .eq('read', false);
 
-      if (!error && count !== null) {
-        setUnreadCount(count);
-      }
+      setUnreadCount(count || 0);
     } catch (err) {
-      console.error('Unread count fetch error:', err);
+      console.error('Unread count error:', err);
     }
   };
 
   useEffect(() => {
-    fetchUnreadCount();
+    if (!user) return;
+    fetchUnread();
 
-    if (user) {
-      // Realtime listener for incoming messages to trigger red dot
-      const channel = supabase
-        .channel(`fab_messages_${user.id}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'messages',
-            filter: `receiver_id=eq.${user.id}`,
-          },
-          () => {
-            fetchUnreadCount();
-          }
-        )
-        .subscribe();
+    // Realtime subscription for new messages
+    channelRef.current = supabase
+      .channel(`fab-messages-${user.id}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+        filter: `receiver_id=eq.${user.id}`,
+      }, () => {
+        setUnreadCount((prev) => prev + 1);
+      })
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'messages',
+        filter: `receiver_id=eq.${user.id}`,
+      }, () => {
+        // Re-fetch when messages marked as read
+        fetchUnread();
+      })
+      .subscribe();
 
-      return () => {
-        supabase.removeChannel(channel);
-      };
-    }
-  }, [user]);
+    return () => {
+      if (channelRef.current) supabase.removeChannel(channelRef.current);
+    };
+  }, [user?.id]);
 
-  // Hide FAB if user is on /social page or not logged in
-  if (!user || location.pathname === '/social') return null;
+  if (!user || isHidden) return null;
 
   return (
-    <motion.button
+    <motion.div
       initial={{ scale: 0, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
-      whileHover={{ scale: 1.15, rotate: 5 }}
-      whileTap={{ scale: 0.9 }}
-      onClick={() => navigate('/social')}
-      className="fixed bottom-24 right-6 z-40 w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 text-white flex items-center justify-center shadow-xl shadow-purple-500/30 cursor-pointer border border-white/20"
-      title="Movie Zone Social"
+      transition={{ delay: 0.5, type: 'spring', stiffness: 200 }}
+      className="fixed bottom-24 right-6 z-[79]"
     >
-      <FiUsers className="text-xl" />
+      <motion.button
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.9 }}
+        onClick={() => {
+          setUnreadCount(0);
+          navigate('/social?tab=messages');
+        }}
+        className="relative w-12 h-12 rounded-full flex items-center justify-center shadow-lg"
+        style={{
+          background: 'linear-gradient(135deg, #a855f7, #ec4899)',
+          boxShadow: unreadCount > 0
+            ? '0 0 20px rgba(168,85,247,0.6)'
+            : '0 4px 15px rgba(168,85,247,0.3)',
+        }}
+      >
+        <FiMessageCircle className="text-white text-xl" />
 
-      {/* Unread badge with pulsing animation */}
-      <AnimatePresence>
+        {/* Unread badge */}
+        <AnimatePresence>
+          {unreadCount > 0 && (
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0 }}
+              className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 border-2 border-dark flex items-center justify-center"
+            >
+              <span className="text-white text-[9px] font-black">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Pulse ring when unread */}
         {unreadCount > 0 && (
-          <motion.span
-            initial={{ scale: 0 }}
-            animate={{ scale: [1, 1.2, 1] }}
-            exit={{ scale: 0 }}
-            transition={{ repeat: Infinity, duration: 1.5 }}
-            className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-600 border-2 border-dark text-white font-extrabold text-[10px] flex items-center justify-center shadow-lg"
-          >
-            {unreadCount > 9 ? '9+' : unreadCount}
-          </motion.span>
+          <motion.div
+            animate={{ scale: [1, 1.4, 1], opacity: [0.6, 0, 0.6] }}
+            transition={{ duration: 2, repeat: Infinity }}
+            className="absolute inset-0 rounded-full"
+            style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)' }}
+          />
         )}
-      </AnimatePresence>
-    </motion.button>
+      </motion.button>
+    </motion.div>
   );
 }
