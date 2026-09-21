@@ -935,27 +935,25 @@ export default function MovieDetail() {
                 )}
               </AnimatePresence>
 
-              {/* Smart sandbox: blocks popups + adult redirects
-                  while keeping scripts + video working */}
               {iframeReady && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.99 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.5, ease: 'easeOut' }}
+                <iframe
+                  key={`${sourceIndex}-${selectedSeason}-${selectedEpisode}`}
+                  src={sources[sourceIndex]?.url}
                   className="w-full h-full"
-                >
-                  <iframe
-                    key={`${sourceIndex}-${selectedSeason}-${selectedEpisode}`}
-                    src={sources[sourceIndex]?.url}
-                    className="w-full h-full"
-                    allowFullScreen
-                    allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
-                    referrerPolicy="no-referrer"
-                    title={title}
-                    style={{ border: 'none', display: 'block' }}
-                    sandbox="allow-scripts allow-same-origin allow-forms allow-presentation allow-fullscreen"
-                  />
-                </motion.div>
+                  allowFullScreen
+                  allow="autoplay; fullscreen; picture-in-picture; encrypted-media; accelerometer; gyroscope"
+                  referrerPolicy="no-referrer"
+                  title={title}
+                  style={{ border: 'none' }}
+                  onError={() => {
+                    toast.error('Server error — trying next...');
+                    handleTryNextServer();
+                  }}
+                  onLoad={() => {
+                    // If iframe loads but content is empty, we still mark ready
+                    // but we already have the timeout fallback
+                  }}
+                />
               )}
             </div>
 
