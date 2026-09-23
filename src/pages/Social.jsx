@@ -124,17 +124,19 @@ function UserCard({ profile, currentUserId, onMessage }) {
     setLoading(true);
     try {
       if (isFollowing) {
-        await supabase.from('follows')
+        const { error } = await supabase.from('follows')
           .delete()
           .eq('follower_id', currentUserId)
           .eq('following_id', profile.id);
+        if (error) throw error;
         setIsFollowing(false);
         toast('Unfollowed', { icon: '👋' });
       } else {
-        await supabase.from('follows')
+        const { error } = await supabase.from('follows')
           .insert({ follower_id: currentUserId, following_id: profile.id });
+        if (error) throw error;
         setIsFollowing(true);
-        toast.success(`Following ${profile.display_name || profile.username}! 🎉`);
+        toast.success(`Following ${profile.display_name || profile.username || 'Movie Fan'}! 🎉`);
       }
     } catch (err) {
       toast.error('Failed. Try again.');
