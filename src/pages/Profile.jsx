@@ -399,12 +399,21 @@ function SocialTabContent({ user, getDisplayName }) {
         onSubmit={handleSaveSocialProfile}
         className="glass rounded-3xl border border-white/10 p-6 space-y-4"
       >
-        <h3
-          className="text-white text-xl font-bold border-b border-white/10 pb-3"
-          style={{ fontFamily: 'Bebas Neue, sans-serif' }}
-        >
-          EDIT SOCIAL PROFILE
-        </h3>
+        <div className="flex items-center justify-between gap-3 border-b border-white/10 pb-3">
+          <h3
+            className="text-white text-xl font-bold"
+            style={{ fontFamily: 'Bebas Neue, sans-serif' }}
+          >
+            EDIT SOCIAL PROFILE
+          </h3>
+          <button
+            type="button"
+            onClick={() => navigate('/social?tab=feed')}
+            className="flex items-center gap-2 px-3 py-2 rounded-full bg-primary/10 border border-primary/30 text-primary text-xs font-bold hover:bg-primary/20 transition-all"
+          >
+            <FiUsers /> Open Community
+          </button>
+        </div>
 
         <div>
           <label className="block text-gray-300 text-xs font-semibold mb-1">
