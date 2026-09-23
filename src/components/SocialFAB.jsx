@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiMessageCircle } from 'react-icons/fi';
+import { FiUsers } from 'react-icons/fi';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../context/AuthContext';
@@ -76,7 +76,7 @@ export default function SocialFAB() {
         whileTap={{ scale: 0.9 }}
         onClick={() => {
           setUnreadCount(0);
-          navigate('/social?tab=messages');
+          navigate('/social?tab=feed');
         }}
         className="relative w-12 h-12 rounded-full flex items-center justify-center shadow-lg"
         style={{
@@ -86,7 +86,7 @@ export default function SocialFAB() {
             : '0 4px 15px rgba(168,85,247,0.3)',
         }}
       >
-        <FiMessageCircle className="text-white text-xl" />
+        <FiUsers className="text-white text-xl" />
 
         {/* Unread badge */}
         <AnimatePresence>
