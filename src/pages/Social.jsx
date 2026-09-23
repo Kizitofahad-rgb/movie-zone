@@ -6,7 +6,7 @@ import {
   FiUsers, FiRss, FiCheck, FiCheckCircle
 } from 'react-icons/fi';
 import { AiFillStar } from 'react-icons/ai';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../context/AuthContext';
 import { IMAGE_BASE } from '../services/tmdb';
@@ -547,7 +547,9 @@ function ConversationsList({ currentUser, onSelectConversation, activePartnerId 
 export default function Social() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [tab, setTab] = useState('feed');
+  const location = useLocation();
+  const initialTab = new URLSearchParams(location.search).get('tab');
+  const [tab, setTab] = useState(['feed', 'discover', 'messages'].includes(initialTab) ? initialTab : 'feed');
   const [feed, setFeed] = useState([]);
   const [feedLoading, setFeedLoading] = useState(true);
   const [discoverUsers, setDiscoverUsers] = useState([]);
@@ -564,57 +566,88 @@ export default function Social() {
       navigate('/login');
       return;
     }
+
+    const requestedTab = new URLSearchParams(location.search).get('tab');
+    if (['feed', 'discover', 'messages'].includes(requestedTab)) {
+      setTab(requestedTab);
+    }
+
     fetchFeed();
     fetchDiscoverUsers();
-  }, [user]);
+
+    const socialChannel = supabase
+      .channel(`social-page-${user.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'activity_feed',
+      }, () => {
+        fetchFeed();
+      })
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'follows',
+      }, () => {
+        fetchFeed();
+        fetchDiscoverUsers();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(socialChannel);
+    };
+  }, [user?.id, location.search]);
 
   const fetchFeed = async () => {
     if (!user) return;
     setFeedLoading(true);
     try {
-      // Get who current user follows
-      const { data: following } = await supabase
+      const { data: following, error: followError } = await supabase
         .from('follows')
         .select('following_id')
         .eq('follower_id', user.id);
 
-      const followingIds = following?.map((f) => f.following_id) || [];
+      if (followError) throw followError;
 
-      if (followingIds.length === 0) {
-        setFeed([]);
-        setFeedLoading(false);
-        return;
-      }
+      // Include the current user's activity as well as followed users.
+      // This makes the profile -> social -> feed connection immediately visible.
+      const followingIds = following?.map((row) => row.following_id) || [];
+      const feedUserIds = [...new Set([user.id, ...followingIds])];
 
-      // Get their activity
-      const { data: acts } = await supabase
+      const { data: acts, error: activityError } = await supabase
         .from('activity_feed')
         .select('*')
-        .in('user_id', followingIds)
+        .in('user_id', feedUserIds)
         .order('created_at', { ascending: false })
-        .limit(30);
+        .limit(40);
 
-      if (!acts || acts.length === 0) {
-        setFeed([]);
-        setFeedLoading(false);
-        return;
+      if (activityError) throw activityError;
+
+      const uniqueIds = [...new Set((acts || []).map((a) => a.user_id))];
+      let profiles = [];
+
+      if (uniqueIds.length) {
+        const { data, error: profileError } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .in('id', uniqueIds);
+
+        if (profileError) throw profileError;
+        profiles = data || [];
       }
 
-      // Fetch profiles for each unique user_id
-      const uniqueIds = [...new Set(acts.map((a) => a.user_id))];
-      const { data: profiles } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .in('id', uniqueIds);
-
-      const enriched = acts.map((a) => ({
+      setFeed((acts || []).map((a) => ({
         ...a,
-        profile: profiles?.find((p) => p.id === a.user_id) || { display_name: 'Movie Fan' },
-      }));
-
-      setFeed(enriched);
+        profile: profiles.find((p) => p.id === a.user_id) || {
+          id: a.user_id,
+          display_name: a.user_id === user.id ? 'You' : 'Movie Fan',
+        },
+      })));
     } catch (err) {
       console.error('Feed error:', err);
+      toast.error(err?.message || 'Could not load your movie feed.');
+      setFeed([]);
     } finally {
       setFeedLoading(false);
     }
@@ -707,6 +740,12 @@ export default function Social() {
 
   const displayUsers = searchQuery.trim() ? searchResults : discoverUsers;
 
+  const setSocialTab = (nextTab) => {
+    setTab(nextTab);
+    window.history.replaceState(null, '', `/social?tab=${nextTab}`);
+  };
+
+
   const tabs = [
     { id: 'feed', label: 'Feed', icon: <FiRss /> },
     { id: 'discover', label: 'Discover', icon: <FiUsers /> },
@@ -739,7 +778,7 @@ export default function Social() {
           {tabs.map((t) => (
             <button
               key={t.id}
-              onClick={() => setTab(t.id)}
+              onClick={() => setSocialTab(t.id)}
               className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all ${
                 tab === t.id
                   ? 'bg-primary text-black font-bold shadow-lg shadow-primary/30'
@@ -784,7 +823,7 @@ export default function Social() {
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    onClick={() => setTab('discover')}
+                    onClick={() => setSocialTab('discover')}
                     className="px-8 py-3 bg-primary text-black font-bold rounded-full text-sm"
                   >
                     Discover People →
