@@ -23,67 +23,61 @@ import { useSubscription } from '../context/SubscriptionContext';
 import { supabase } from '../services/supabase';
 import toast from 'react-hot-toast';
 
-// ── FRESH SOURCES — September 2026 ──
-// VIDEM: built-in source failover, dead sources dropped in seconds
-// VidCore: confirmed ad-free, 4K HDR, open CORS headers
-// VidSrc.hair: official domain, multi-source HLS failover
-// VidLink: branded with Movie Zone colors (blue + gold)
-// AutoEmbed: reliable backup, widely maintained
-// MultiEmbed: VIP directstream endpoint, last resort
+// ── TASK 1: FRESH VIDEO SOURCES ──
 const SOURCES = (type, id, season = 1, episode = 1) => {
   if (type === 'tv') {
     return [
+     /* {
+        name: 'VidCore',
+        url: `https://vidcore.org/embed/series/${id}/${season}/${episode}`,
+      },*/
       {
         name: 'VIDEM',
         url: `https://videm.xyz/embed/tv/${id}/${season}/${episode}`,
       },
-      {
-        name: 'VidCore',
-        url: `https://vidcore.org/embed/series/${id}/${season}/${episode}`,
+     /* {
+        name: 'VidNest',
+        url: `https://vidnest.fun/embed/tv/${id}/${season}/${episode}`,
       },
       {
-        name: 'VidSrc',
-        url: `https://vidsrc.hair/embed/tv/${id}/${season}/${episode}`,
+        name: 'CineSrc',
+        url: `https://cinesrc.st/embed/tv/${id}/${season}/${episode}`,
       },
       {
         name: 'VidLink',
         url: `https://vidlink.pro/tv/${id}/${season}/${episode}?primaryColor=00d4ff&secondaryColor=ffd700&player=jw&autoplay=true&nextbutton=true`,
       },
       {
-        name: 'AutoEmbed',
-        url: `https://player.autoembed.cc/embed/tv/${id}/${season}/${episode}`,
-      },
-      {
-        name: 'MultiEmbed',
-        url: `https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1&s=${season}&e=${episode}`,
-      },
+        name: 'VidSrc',
+        url: `https://vidsrc.hair/embed/tv/${id}/${season}/${episode}`,
+      },*/
     ];
   }
   return [
+   /* {
+      name: 'VidCore',
+      url: `https://vidcore.org/embed/movie/${id}`,
+    },*/
     {
       name: 'VIDEM',
       url: `https://videm.xyz/embed/movie/${id}`,
     },
-    {
-      name: 'VidCore',
-      url: `https://vidcore.org/embed/movie/${id}`,
+   /* {
+      name: 'VidNest',
+      url: `https://vidnest.fun/embed/movie/${id}`,
     },
     {
-      name: 'VidSrc',
-      url: `https://vidsrc.hair/embed/movie/${id}`,
+      name: 'CineSrc',
+      url: `https://cinesrc.st/embed/movie/${id}`,
     },
     {
       name: 'VidLink',
       url: `https://vidlink.pro/movie/${id}?primaryColor=00d4ff&secondaryColor=ffd700&player=jw&autoplay=true`,
     },
     {
-      name: 'AutoEmbed',
-      url: `https://player.autoembed.cc/embed/movie/${id}`,
-    },
-    {
-      name: 'MultiEmbed',
-      url: `https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1`,
-    },
+      name: 'VidSrc',
+      url: `https://vidsrc.hair/embed/movie/${id}`,
+    },*/
   ];
 };
 
@@ -92,6 +86,7 @@ export default function MovieDetail() {
   const navigate = useNavigate();
   const isTV = window.location.pathname.startsWith('/tv');
 
+  // Auth & Subscription
   const { user } = useAuth();
   const { isActive, loading: subLoading } = useSubscription();
 
@@ -114,18 +109,22 @@ export default function MovieDetail() {
   const [inWatchlist, setInWatchlist] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
 
+  // Schedule state
   const [showSchedule, setShowSchedule] = useState(false);
   const [scheduleDateTime, setScheduleDateTime] = useState('');
 
+  // Paywall state
   const [showPaywall, setShowPaywall] = useState(false);
   const [paywallReason, setPaywallReason] = useState('upgrade');
 
+  // Comments refresh
   const [commentRefreshKey, setCommentRefreshKey] = useState(0);
 
+  // Task 4D: Rating Prompt State
   const [showRatingPrompt, setShowRatingPrompt] = useState(false);
   const [hoverStar, setHoverStar] = useState(0);
 
-  // Cinematic: ambient pulse for player glow
+  // ✨ Cinematic: ambient pulse for player glow
   const [playerGlowActive, setPlayerGlowActive] = useState(false);
 
   const watchTimerRef = useRef(null);
@@ -165,15 +164,17 @@ export default function MovieDetail() {
     setSourceIndex(0);
   }, [selectedSeason, selectedEpisode, id]);
 
-  // Activate glow after player is visible
+  // ✨ Activate player glow after iframe is visible
   useEffect(() => {
     if (iframeReady) {
-      setTimeout(() => setPlayerGlowActive(true), 300);
+      const t = setTimeout(() => setPlayerGlowActive(true), 300);
+      return () => clearTimeout(t);
     } else {
       setPlayerGlowActive(false);
     }
   }, [iframeReady]);
 
+  // Task 1: handleWatch is strictly synchronous
   const handleWatch = () => {
     if (!user) {
       toast('Please sign in to start streaming', {
@@ -202,6 +203,7 @@ export default function MovieDetail() {
     setShowLoader(true);
     setShowPlayer(true);
 
+    // Task 4D: Post to activity_feed after 30 seconds of watching
     if (watchTimerRef.current) clearTimeout(watchTimerRef.current);
     watchTimerRef.current = setTimeout(async () => {
       if (user && details) {
@@ -213,6 +215,7 @@ export default function MovieDetail() {
             movie_title: details.title || details.name,
             movie_poster: details.poster_path,
           });
+          console.log('✅ Activity posted: watching');
         } catch (e) {
           console.error('Failed to post watch activity:', e);
         }
@@ -223,23 +226,26 @@ export default function MovieDetail() {
   const handleLoaderComplete = () => {
     setShowLoader(false);
     setIframeReady(true);
+    // Clear any timeout for iframe loading
     if (iframeLoadTimeoutRef.current) {
       clearTimeout(iframeLoadTimeoutRef.current);
       iframeLoadTimeoutRef.current = null;
     }
   };
 
+  // Fallback: if iframe doesn't load after 15 seconds, try next server
   const startIframeTimeout = () => {
     if (iframeLoadTimeoutRef.current) clearTimeout(iframeLoadTimeoutRef.current);
     iframeLoadTimeoutRef.current = setTimeout(() => {
       if (!iframeReady) {
-        toast.error('Server taking too long — switching...');
+        toast.error('Server taking too long — switching to next...');
         handleTryNextServer();
       }
     }, 15000);
   };
 
   const handleTryNextServer = () => {
+    // Clear any existing timeout
     if (iframeLoadTimeoutRef.current) {
       clearTimeout(iframeLoadTimeoutRef.current);
       iframeLoadTimeoutRef.current = null;
@@ -254,7 +260,7 @@ export default function MovieDetail() {
         setIframeReady(true);
         startIframeTimeout();
       }, 4200);
-      toast(`Switching to ${sources[next]?.name || `Server ${next + 1}`}...`, { icon: '🔄' });
+      toast(`Trying Server ${next + 1}...`, { icon: '🔄' });
     } else {
       toast.error('All servers tried. Content may not be available yet.');
     }
@@ -289,6 +295,7 @@ export default function MovieDetail() {
     );
   };
 
+  // Task 4D: Trigger star rating prompt when closing player
   const closePlayer = () => {
     setShowPlayer(false);
     setShowLoader(false);
@@ -299,15 +306,19 @@ export default function MovieDetail() {
       clearTimeout(iframeLoadTimeoutRef.current);
       iframeLoadTimeoutRef.current = null;
     }
+
     if (user && details) {
       setShowRatingPrompt(true);
-      setTimeout(() => setShowRatingPrompt(false), 5000);
+      setTimeout(() => {
+        setShowRatingPrompt(false);
+      }, 5000);
     }
   };
 
   const handleRateMovie = async (stars) => {
     setShowRatingPrompt(false);
     if (!user || !details) return;
+
     try {
       await supabase.from('activity_feed').insert({
         user_id: user.id,
@@ -329,8 +340,15 @@ export default function MovieDetail() {
   };
 
   const handleSchedule = async () => {
-    if (!user) { toast.error('Please sign in to schedule a movie.'); return; }
-    if (!scheduleDateTime) { toast.error('Please select a date and time.'); return; }
+    if (!user) {
+      toast.error('Please sign in to schedule a movie.');
+      return;
+    }
+    if (!scheduleDateTime) {
+      toast.error('Please select a date and time.');
+      return;
+    }
+
     try {
       const { error } = await supabase.from('scheduled_watch').insert({
         user_id: user.id,
@@ -340,11 +358,18 @@ export default function MovieDetail() {
         poster_path: details?.poster_path,
         scheduled_at: new Date(scheduleDateTime).toISOString(),
       });
+
       if (error) throw error;
-      toast.success(`📅 "${details?.title || details?.name}" scheduled!`);
+
+      toast.success(
+        `📅 "${details?.title || details?.name}" scheduled for ${new Date(
+          scheduleDateTime
+        ).toLocaleString()}`
+      );
       setShowSchedule(false);
       setScheduleDateTime('');
     } catch (err) {
+      console.error('Schedule error:', err);
       toast.error('Failed to schedule. Please try again.');
     }
   };
@@ -443,16 +468,25 @@ export default function MovieDetail() {
             <div className="flex flex-wrap items-center gap-4 mb-6 text-sm text-gray-300">
               <div className="flex items-center gap-1">
                 <AiFillStar className="text-gold" />
-                <span className="font-bold text-white">
+                <span className="font-bold text-gold">
                   {details.vote_average?.toFixed(1)}
                 </span>
+                <span className="text-gray-500">/ 10</span>
               </div>
-              <span className="flex items-center gap-1">
-                <FiCalendar className="text-primary" /> {year}
-              </span>
-              <span className="flex items-center gap-1">
-                <FiClock className="text-primary" /> {runtime}
-              </span>
+              <div className="flex items-center gap-1">
+                <FiCalendar className="text-primary" />
+                <span>{year}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <FiClock className="text-primary" />
+                <span>{runtime}</span>
+              </div>
+              {details.number_of_seasons && (
+                <span className="px-2 py-0.5 bg-white/10 rounded-full">
+                  {details.number_of_seasons} Season
+                  {details.number_of_seasons > 1 ? 's' : ''}
+                </span>
+              )}
               {details.status && (
                 <span className="px-2 py-0.5 rounded-full bg-green-500/20 border border-green-500/40 text-green-400 text-xs">
                   {details.status}
@@ -460,14 +494,20 @@ export default function MovieDetail() {
               )}
             </div>
 
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <motion.button
-                whileHover={{ scale: 1.05 }}
+                whileHover={{
+                  scale: 1.05,
+                  boxShadow: '0 0 40px rgba(0,212,255,0.7)',
+                }}
                 whileTap={{ scale: 0.95 }}
                 onClick={handleWatch}
-                className="flex items-center gap-2 bg-primary text-black font-black px-8 py-3 rounded-xl text-sm shadow-lg shadow-primary/40"
+                className="flex items-center gap-3 bg-primary text-black font-black px-8 py-3.5 rounded-xl text-sm tracking-widest uppercase shadow-lg shadow-primary/40"
               >
-                <FiPlay fill="black" /> Watch Now
+                <FiPlay fill="black" className="text-lg" />
+                {isTV
+                  ? `WATCH S${selectedSeason} E${selectedEpisode}`
+                  : 'WATCH NOW'}
               </motion.button>
 
               {trailer && (
@@ -475,7 +515,7 @@ export default function MovieDetail() {
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={() => setShowTrailer(true)}
-                  className="flex items-center gap-2 glass border border-white/20 hover:border-primary text-white px-6 py-3 rounded-xl text-sm transition-all"
+                  className="flex items-center gap-2 glass text-white font-semibold px-6 py-3.5 rounded-xl text-sm border border-white/20 hover:border-yellow-400/60 transition-all"
                 >
                   <FiPlay /> Trailer
                 </motion.button>
@@ -484,8 +524,17 @@ export default function MovieDetail() {
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
+                onClick={() => setShowSchedule(true)}
+                className="flex items-center gap-2 glass text-white font-semibold px-5 py-3.5 rounded-xl text-sm border border-white/20 hover:border-gold hover:text-gold transition-all"
+              >
+                <FiCalendar /> Schedule
+              </motion.button>
+
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={handleWatchlist}
-                className={`flex items-center gap-2 glass border px-5 py-3 rounded-xl text-sm transition-all ${
+                className={`flex items-center gap-2 glass border px-5 py-3.5 rounded-xl text-sm transition-all font-semibold ${
                   inWatchlist
                     ? 'border-primary text-primary bg-primary/10'
                     : 'border-white/20 text-white hover:border-primary'
@@ -494,21 +543,12 @@ export default function MovieDetail() {
                 {inWatchlist ? <FiCheck /> : <FiPlus />}
                 {inWatchlist ? 'Saved' : 'Watchlist'}
               </motion.button>
-
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setShowSchedule(true)}
-                className="flex items-center gap-2 glass border border-white/20 hover:border-gold text-white hover:text-gold px-5 py-3 rounded-xl text-sm transition-all"
-              >
-                <FiCalendar /> Schedule
-              </motion.button>
             </div>
           </motion.div>
         </div>
       </div>
 
-      {/* ── CONTENT ── */}
+      {/* ── MAIN CONTENT ── */}
       <div className="max-w-7xl mx-auto px-4 sm:px-8 py-10">
         {/* Schedule Modal */}
         <AnimatePresence>
@@ -531,7 +571,8 @@ export default function MovieDetail() {
                   <FiCalendar className="text-primary" /> Schedule Watch
                 </h3>
                 <p className="text-gray-400 text-sm mb-4">
-                  Set a reminder to watch <span className="text-white font-bold">{title}</span>
+                  Set a reminder to watch{' '}
+                  <span className="text-white font-bold">{title}</span>
                 </p>
                 <input
                   type="datetime-local"
@@ -560,204 +601,260 @@ export default function MovieDetail() {
           )}
         </AnimatePresence>
 
-        {/* TV Season/Episode Picker */}
-        {isTV && seasons.length > 0 && (
+        <div className="flex flex-col lg:flex-row gap-10">
+          {/* Poster */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="glass border border-white/10 rounded-2xl p-6 mb-8"
+            initial={{ opacity: 0, x: -30 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="lg:w-64 flex-shrink-0"
           >
-            <h3 className="text-white font-bold text-base mb-4 flex items-center gap-2">
-              <FiTv className="text-primary" /> Episodes
-            </h3>
-
-            <div className="relative mb-4">
-              <button
-                onClick={() => setSeasonOpen(!seasonOpen)}
-                className="flex items-center justify-between w-full sm:w-64 bg-white/10 border border-white/20 hover:border-primary rounded-xl px-4 py-3 text-white text-sm transition-all"
-              >
-                <span className="font-medium">Season {selectedSeason}</span>
-                <motion.div
-                  animate={{ rotate: seasonOpen ? 180 : 0 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <FiChevronDown />
-                </motion.div>
-              </button>
-
-              <AnimatePresence>
-                {seasonOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="absolute top-14 left-0 z-30 w-full sm:w-64 glass border border-white/20 rounded-xl overflow-auto shadow-2xl"
-                    style={{ maxHeight: '280px' }}
-                  >
-                    {seasons.map((season) => (
-                      <button
-                        key={season.season_number}
-                        onClick={() =>
-                          handleSeasonChange(season.season_number, season.episode_count)
-                        }
-                        className={`w-full flex items-center justify-between px-4 py-3 text-sm transition-colors hover:bg-primary/20 ${
-                          selectedSeason === season.season_number
-                            ? 'text-primary bg-primary/10'
-                            : 'text-gray-300'
-                        }`}
-                      >
-                        <span>{season.name}</span>
-                        <span className="text-gray-500 text-xs">
-                          {season.episode_count} eps
-                        </span>
-                      </button>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
+            <div className="card-3d rounded-2xl overflow-hidden shadow-2xl shadow-primary/20 mb-6">
+              <img
+                src={`${IMAGE_BASE}${details.poster_path}`}
+                alt={title}
+                className="w-full"
+              />
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              {episodes.map((ep) => (
+            <div className="glass rounded-2xl p-4 space-y-3 border border-white/10">
+              {[
+                { label: 'Status', value: details.status },
+                {
+                  label: 'Rating',
+                  value: `${details.vote_average?.toFixed(1)} / 10`,
+                },
+                {
+                  label: 'Votes',
+                  value: details.vote_count?.toLocaleString(),
+                },
+                {
+                  label: 'Language',
+                  value: details.original_language?.toUpperCase(),
+                },
+              ].map((item) => (
+                <div key={item.label} className="flex justify-between text-sm">
+                  <span className="text-gray-500">{item.label}</span>
+                  <span className="text-white font-medium">{item.value}</span>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+
+          {/* Right Content */}
+          <motion.div
+            initial={{ opacity: 0, x: 30 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="flex-1"
+          >
+            {/* Season + Episode Picker */}
+            {isTV && seasons.length > 0 && (
+              <div className="mb-8 glass rounded-2xl p-5 border border-primary/20">
+                <h3 className="text-white font-bold text-lg mb-4 flex items-center gap-2">
+                  <FiTv className="text-primary" /> Episodes
+                </h3>
+
+                <div className="relative mb-4">
+                  <button
+                    onClick={() => setSeasonOpen(!seasonOpen)}
+                    className="flex items-center justify-between w-full sm:w-64 bg-white/10 border border-white/20 hover:border-primary rounded-xl px-4 py-3 text-white text-sm transition-all"
+                  >
+                    <span className="font-medium">Season {selectedSeason}</span>
+                    <motion.div
+                      animate={{ rotate: seasonOpen ? 180 : 0 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <FiChevronDown />
+                    </motion.div>
+                  </button>
+
+                  <AnimatePresence>
+                    {seasonOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="absolute top-14 left-0 z-30 w-full sm:w-64 glass border border-white/20 rounded-xl overflow-auto shadow-2xl"
+                        style={{ maxHeight: '280px' }}
+                      >
+                        {seasons.map((season) => (
+                          <button
+                            key={season.season_number}
+                            onClick={() =>
+                              handleSeasonChange(
+                                season.season_number,
+                                season.episode_count
+                              )
+                            }
+                            className={`w-full flex items-center justify-between px-4 py-3 text-sm transition-colors hover:bg-primary/20 ${
+                              selectedSeason === season.season_number
+                                ? 'text-primary bg-primary/10'
+                                : 'text-gray-300'
+                            }`}
+                          >
+                            <span>{season.name}</span>
+                            <span className="text-gray-500 text-xs">
+                              {season.episode_count} eps
+                            </span>
+                          </button>
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  {episodes.map((ep) => (
+                    <motion.button
+                      key={ep}
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => {
+                        setSelectedEpisode(ep);
+                        toast.success(`Selected S${selectedSeason} E${ep}`);
+                      }}
+                      className={`w-10 h-10 rounded-lg text-sm font-bold transition-all ${
+                        selectedEpisode === ep
+                          ? 'bg-primary text-black shadow-lg shadow-primary/40'
+                          : 'glass border border-white/20 text-gray-400 hover:text-white hover:border-primary/60'
+                      }`}
+                    >
+                      {ep}
+                    </motion.button>
+                  ))}
+                </div>
+
                 <motion.button
-                  key={ep}
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                  onClick={() => {
-                    setSelectedEpisode(ep);
-                    toast.success(`Selected S${selectedSeason} E${ep}`);
-                  }}
-                  className={`w-10 h-10 rounded-lg text-sm font-bold transition-all ${
-                    selectedEpisode === ep
-                      ? 'bg-primary text-black shadow-lg shadow-primary/40'
-                      : 'glass border border-white/20 text-gray-400 hover:text-white hover:border-primary/60'
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={handleWatch}
+                  className="mt-4 flex items-center gap-2 bg-primary text-black font-black px-8 py-3 rounded-xl text-sm"
+                >
+                  <FiPlay fill="black" />
+                  Play S{selectedSeason} E{selectedEpisode}
+                </motion.button>
+              </div>
+            )}
+
+            {/* Tabs */}
+            <div className="flex gap-1 mb-8 bg-white/5 rounded-full p-1 w-fit">
+              {['overview', 'cast', 'reviews'].map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`px-6 py-2 rounded-full text-sm font-medium capitalize transition-all ${
+                    activeTab === tab
+                      ? 'bg-primary text-black font-bold'
+                      : 'text-gray-400 hover:text-white'
                   }`}
                 >
-                  {ep}
-                </motion.button>
+                  {tab}
+                </button>
               ))}
             </div>
 
-            <motion.button
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.97 }}
-              onClick={handleWatch}
-              className="mt-4 flex items-center gap-2 bg-primary text-black font-black px-8 py-3 rounded-xl text-sm"
-            >
-              <FiPlay fill="black" />
-              Play S{selectedSeason} E{selectedEpisode}
-            </motion.button>
-          </motion.div>
-        )}
-
-        {/* Tabs */}
-        <div className="flex gap-1 mb-8 bg-white/5 rounded-full p-1 w-fit">
-          {['overview', 'cast', 'reviews'].map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-6 py-2 rounded-full text-sm font-medium capitalize transition-all ${
-                activeTab === tab
-                  ? 'bg-primary text-black font-bold'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              {tab}
-            </button>
-          ))}
-        </div>
-
-        <AnimatePresence mode="wait">
-          {activeTab === 'overview' && (
-            <motion.div
-              key="overview"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-            >
-              <h3 className="text-white font-bold text-lg mb-3">Synopsis</h3>
-              <p className="text-gray-300 leading-relaxed text-sm md:text-base mb-8">
-                {details.overview}
-              </p>
-            </motion.div>
-          )}
-
-          {activeTab === 'cast' && (
-            <motion.div
-              key="cast"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-            >
-              <h3 className="text-white font-bold text-lg mb-6">Top Cast</h3>
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-4">
-                {cast.map((person, i) => (
-                  <motion.div
-                    key={person.id}
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: i * 0.05 }}
-                    whileHover={{ y: -5 }}
-                    className="text-center group"
-                  >
-                    <div className="w-full aspect-square rounded-xl overflow-hidden mb-2 border-2 border-transparent group-hover:border-primary transition-all">
-                      <img
-                        src={
-                          person.profile_path
-                            ? `${IMAGE_BASE}${person.profile_path}`
-                            : 'https://via.placeholder.com/150?text=?'
-                        }
-                        alt={person.name}
-                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                      />
-                    </div>
-                    <p className="text-white text-xs font-medium">{person.name}</p>
-                    <p className="text-gray-500 text-xs truncate">{person.character}</p>
-                  </motion.div>
-                ))}
-              </div>
-            </motion.div>
-          )}
-
-          {activeTab === 'reviews' && (
-            <motion.div
-              key="reviews"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="space-y-4"
-            >
-              {details.reviews?.results?.length > 0 ? (
-                details.reviews.results.slice(0, 4).map((review, i) => (
-                  <motion.div
-                    key={review.id}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.1 }}
-                    className="glass rounded-xl p-5 border border-white/10"
-                  >
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="w-9 h-9 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center">
-                        <span className="text-primary font-bold text-sm">
-                          {review.author?.[0]?.toUpperCase()}
-                        </span>
-                      </div>
-                      <p className="text-white text-sm font-medium">{review.author}</p>
-                    </div>
-                    <p className="text-gray-400 text-sm leading-relaxed line-clamp-4">
-                      {review.content}
-                    </p>
-                  </motion.div>
-                ))
-              ) : (
-                <div className="text-center py-12 text-gray-500">
-                  <p className="text-4xl mb-3">🎬</p>
-                  <p>No reviews yet</p>
-                </div>
+            <AnimatePresence mode="wait">
+              {activeTab === 'overview' && (
+                <motion.div
+                  key="overview"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                >
+                  <h3 className="text-white font-bold text-lg mb-3">Synopsis</h3>
+                  <p className="text-gray-300 leading-relaxed text-sm md:text-base mb-8">
+                    {details.overview}
+                  </p>
+                </motion.div>
               )}
-            </motion.div>
-          )}
-        </AnimatePresence>
+
+              {activeTab === 'cast' && (
+                <motion.div
+                  key="cast"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                >
+                  <h3 className="text-white font-bold text-lg mb-6">Top Cast</h3>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-4">
+                    {cast.map((person, i) => (
+                      <motion.div
+                        key={person.id}
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: i * 0.05 }}
+                        whileHover={{ y: -5 }}
+                        className="text-center group"
+                      >
+                        <div className="w-full aspect-square rounded-xl overflow-hidden mb-2 border-2 border-transparent group-hover:border-primary transition-all">
+                          <img
+                            src={
+                              person.profile_path
+                                ? `${IMAGE_BASE}${person.profile_path}`
+                                : 'https://via.placeholder.com/150?text=?'
+                            }
+                            alt={person.name}
+                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                          />
+                        </div>
+                        <p className="text-white text-xs font-medium">
+                          {person.name}
+                        </p>
+                        <p className="text-gray-500 text-xs truncate">
+                          {person.character}
+                        </p>
+                      </motion.div>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+
+              {activeTab === 'reviews' && (
+                <motion.div
+                  key="reviews"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="space-y-4"
+                >
+                  {details.reviews?.results?.length > 0 ? (
+                    details.reviews.results.slice(0, 4).map((review, i) => (
+                      <motion.div
+                        key={review.id}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.1 }}
+                        className="glass rounded-xl p-5 border border-white/10"
+                      >
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center">
+                              <span className="text-primary font-bold text-sm">
+                                {review.author?.[0]?.toUpperCase()}
+                              </span>
+                            </div>
+                            <div>
+                              <p className="text-white text-sm font-medium">
+                                {review.author}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                        <p className="text-gray-400 text-sm leading-relaxed line-clamp-4">
+                          {review.content}
+                        </p>
+                      </motion.div>
+                    ))
+                  ) : (
+                    <div className="text-center py-12 text-gray-500">
+                      <p className="text-4xl mb-3">🎬</p>
+                      <p>No reviews yet</p>
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        </div>
 
         {/* Similar */}
         {similar.length > 0 && (
@@ -765,14 +862,21 @@ export default function MovieDetail() {
             initial={{ opacity: 0, y: 40 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="mt-12"
+            className="mt-16"
           >
-            <h2
-              className="text-2xl font-black text-white mb-6"
-              style={{ fontFamily: 'Bebas Neue, sans-serif', letterSpacing: '1px' }}
-            >
-              More Like This
-            </h2>
+            <div className="flex items-center gap-3 mb-6">
+              <span className="text-2xl">🎯</span>
+              <h2
+                className="text-2xl font-black text-white"
+                style={{
+                  fontFamily: 'Bebas Neue, sans-serif',
+                  letterSpacing: '1px',
+                }}
+              >
+                More Like This
+              </h2>
+              <div className="flex-1 h-px bg-gradient-to-r from-primary/50 to-transparent ml-2" />
+            </div>
             <div className="flex gap-4 overflow-x-auto hide-scrollbar pb-4">
               {similar.map((movie, i) => (
                 <MovieCard key={movie.id} movie={movie} index={i} />
@@ -781,7 +885,7 @@ export default function MovieDetail() {
           </motion.div>
         )}
 
-        {/* Comments */}
+        {/* ─── COMMENTS SECTION ─── */}
         <motion.div
           initial={{ opacity: 0, y: 40 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -793,8 +897,18 @@ export default function MovieDetail() {
             <h2 className="text-2xl font-bold text-white">Comments</h2>
             <div className="flex-1 h-px bg-gradient-to-r from-primary/50 to-transparent ml-2" />
           </div>
-          <CommentInput movieId={movieId} movieType={movieType} onCommentAdded={handleCommentAdded} />
-          <CommentList key={commentRefreshKey} movieId={movieId} movieType={movieType} />
+
+          <CommentInput
+            movieId={movieId}
+            movieType={movieType}
+            onCommentAdded={handleCommentAdded}
+          />
+
+          <CommentList
+            key={commentRefreshKey}
+            movieId={movieId}
+            movieType={movieType}
+          />
         </motion.div>
       </div>
 
@@ -826,14 +940,19 @@ export default function MovieDetail() {
 
             {/* ── Ambient glow orbs ── */}
             <motion.div
-              animate={playerGlowActive ? {
-                opacity: [0.15, 0.25, 0.15],
-                scale: [1, 1.05, 1],
-              } : { opacity: 0 }}
+              animate={
+                playerGlowActive
+                  ? {
+                      opacity: [0.15, 0.25, 0.15],
+                      scale: [1, 1.05, 1],
+                    }
+                  : { opacity: 0 }
+              }
               transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
               className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-[120%] rounded-full pointer-events-none"
               style={{
-                background: 'radial-gradient(ellipse, rgba(0,212,255,0.08) 0%, transparent 70%)',
+                background:
+                  'radial-gradient(ellipse, rgba(0,212,255,0.08) 0%, transparent 70%)',
               }}
             />
 
@@ -844,23 +963,25 @@ export default function MovieDetail() {
               transition={{ duration: 0.3 }}
               className="relative z-10 flex-shrink-0"
               style={{
-                background: 'linear-gradient(to bottom, rgba(0,0,0,0.98), rgba(0,0,0,0.85))',
+                background:
+                  'linear-gradient(to bottom, rgba(0,0,0,0.98), rgba(0,0,0,0.85))',
                 borderBottom: '1px solid rgba(0,212,255,0.15)',
               }}
             >
               {/* Top header */}
               <div className="flex items-center justify-between px-4 py-2.5 gap-3 flex-wrap">
-
                 {/* Left: movie info */}
                 <div className="flex items-center gap-3 min-w-0">
-                  {/* Poster thumbnail */}
                   {posterUrl && (
                     <div className="w-8 h-11 rounded-md overflow-hidden flex-shrink-0 border border-primary/30 shadow-lg shadow-primary/20">
-                      <img src={posterUrl} alt={title} className="w-full h-full object-cover" />
+                      <img
+                        src={posterUrl}
+                        alt={title}
+                        className="w-full h-full object-cover"
+                      />
                     </div>
                   )}
 
-                  {/* Live indicator + title */}
                   <div className="flex flex-col min-w-0">
                     <div className="flex items-center gap-2">
                       <motion.div
@@ -874,7 +995,10 @@ export default function MovieDetail() {
                     </div>
                     <span
                       className="text-white font-bold text-sm leading-tight truncate max-w-[200px] sm:max-w-xs"
-                      style={{ fontFamily: 'Bebas Neue, sans-serif', letterSpacing: '1px' }}
+                      style={{
+                        fontFamily: 'Bebas Neue, sans-serif',
+                        letterSpacing: '1px',
+                      }}
                     >
                       {isTV
                         ? `${title} — S${selectedSeason} E${selectedEpisode}`
@@ -897,7 +1021,7 @@ export default function MovieDetail() {
                           : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white border-white/10 hover:border-primary/40'
                       }`}
                     >
-                      {source.name}
+                      {source.name || `S${i + 1}`}
                     </motion.button>
                   ))}
                 </div>
@@ -1005,6 +1129,10 @@ export default function MovieDetail() {
                       toast.error('Server error — trying next...');
                       handleTryNextServer();
                     }}
+                    onLoad={() => {
+                      // If iframe loads but content is empty, we still mark ready
+                      // but we already have the timeout fallback
+                    }}
                   />
                 </motion.div>
               )}
@@ -1017,7 +1145,8 @@ export default function MovieDetail() {
               transition={{ duration: 0.3 }}
               className="relative z-10 flex-shrink-0 px-4 py-2 flex items-center justify-between flex-wrap gap-2"
               style={{
-                background: 'linear-gradient(to top, rgba(0,0,0,0.98), rgba(0,0,0,0.85))',
+                background:
+                  'linear-gradient(to top, rgba(0,0,0,0.98), rgba(0,0,0,0.85))',
                 borderTop: '1px solid rgba(0,212,255,0.1)',
               }}
             >
@@ -1056,7 +1185,7 @@ export default function MovieDetail() {
         )}
       </AnimatePresence>
 
-      {/* ── TRAILER MODAL ── */}
+      {/* ─── TRAILER MODAL ─── */}
       <AnimatePresence>
         {showTrailer && trailer && (
           <motion.div
@@ -1091,7 +1220,7 @@ export default function MovieDetail() {
         )}
       </AnimatePresence>
 
-      {/* ── Rating Prompt ── */}
+      {/* ─── Task 4D: Rating Prompt Overlay ─── */}
       <AnimatePresence>
         {showRatingPrompt && (
           <motion.div
@@ -1113,7 +1242,9 @@ export default function MovieDetail() {
                   className="transition-transform hover:scale-125"
                 >
                   <AiFillStar
-                    className={star <= hoverStar ? 'text-gold' : 'text-gray-600'}
+                    className={
+                      star <= hoverStar ? 'text-gold' : 'text-gray-600'
+                    }
                   />
                 </button>
               ))}
