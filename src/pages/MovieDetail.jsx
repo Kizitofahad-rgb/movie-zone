@@ -14,6 +14,7 @@ import {
   IMAGE_ORIGINAL,
 } from '../services/tmdb';
 import MovieCard from '../components/MovieCard';
+import { useWatchlist } from '../hooks/useWatchlist';
 import PlayerLoader from '../components/PlayerLoader';
 import PaywallModal from '../components/PaywallModal';
 import CommentInput from '../components/CommentInput';
@@ -106,7 +107,10 @@ export default function MovieDetail() {
   const [seasonOpen, setSeasonOpen] = useState(false);
   const [episodes, setEpisodes] = useState([]);
 
-  const [inWatchlist, setInWatchlist] = useState(false);
+  const { watchlist, addToWatchlist, removeFromWatchlist } = useWatchlist();
+  const inWatchlist = watchlist.some(
+    (item) => item.movie_id === parseInt(id) && item.movie_type === (isTV ? 'tv' : 'movie')
+  );
   const [activeTab, setActiveTab] = useState('overview');
 
   // Schedule state
@@ -203,21 +207,53 @@ export default function MovieDetail() {
     setShowLoader(true);
     setShowPlayer(true);
 
-    // Task 4D: Post to activity_feed after 30 seconds of watching
+    // Keep one lightweight "currently watching" record per user.
+    // The Social feed UI is disabled, so we update an existing row
+    // instead of creating a new history row for every movie watched.
     if (watchTimerRef.current) clearTimeout(watchTimerRef.current);
     watchTimerRef.current = setTimeout(async () => {
       if (user && details) {
         try {
-          await supabase.from('activity_feed').insert({
+          const movieData = {
             user_id: user.id,
             type: 'watching',
             movie_id: parseInt(id),
             movie_title: details.title || details.name,
             movie_poster: details.poster_path,
-          });
-          console.log('✅ Activity posted: watching');
+          };
+
+          const { data: currentWatching, error: lookupError } = await supabase
+            .from('activity_feed')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('type', 'watching')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (lookupError) throw lookupError;
+
+          if (currentWatching?.id) {
+            const { error } = await supabase
+              .from('activity_feed')
+              .update({
+                ...movieData,
+                created_at: new Date().toISOString(),
+              })
+              .eq('id', currentWatching.id);
+
+            if (error) throw error;
+          } else {
+            const { error } = await supabase
+              .from('activity_feed')
+              .insert(movieData);
+
+            if (error) throw error;
+          }
+
+          console.log('✅ Current watching activity updated:', movieData.movie_title);
         } catch (e) {
-          console.error('Failed to post watch activity:', e);
+          console.error('Failed to update current watch activity:', e);
         }
       }
     }, 30000);
@@ -288,11 +324,29 @@ export default function MovieDetail() {
     setSeasonOpen(false);
   };
 
-  const handleWatchlist = () => {
-    setInWatchlist(!inWatchlist);
-    toast.success(
-      inWatchlist ? 'Removed from watchlist' : '✅ Added to watchlist!'
-    );
+  const handleWatchlist = async () => {
+    if (!user) {
+      toast.error('Please sign in to save movies to your watchlist.');
+      navigate('/login');
+      return;
+    }
+
+    const movie = {
+      id: parseInt(id),
+      title: details?.title,
+      name: details?.name,
+      poster_path: details?.poster_path,
+      vote_average: details?.vote_average,
+      release_date: details?.release_date,
+      first_air_date: details?.first_air_date,
+      media_type: isTV ? 'tv' : 'movie',
+    };
+
+    if (inWatchlist) {
+      await removeFromWatchlist(movie.id);
+    } else {
+      await addToWatchlist(movie);
+    }
   };
 
   // Task 4D: Trigger star rating prompt when closing player
@@ -320,15 +374,9 @@ export default function MovieDetail() {
     if (!user || !details) return;
 
     try {
-      await supabase.from('activity_feed').insert({
-        user_id: user.id,
-        type: 'finished',
-        rating: stars,
-        movie_id: parseInt(id),
-        movie_title: details.title || details.name,
-        movie_poster: details.poster_path,
-      });
-      toast.success(`Rated ${stars} ⭐! Added to your activity feed.`);
+      // Ratings are currently local to this interaction.
+      // Do not write another historical activity row while the feed is disabled.
+      toast.success(`Rated ${stars} ⭐!`);
     } catch (e) {
       console.error('Failed to save rating:', e);
     }
