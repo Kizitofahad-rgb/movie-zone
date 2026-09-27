@@ -3,13 +3,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   FiSearch, FiSend, FiUserPlus, FiUserCheck,
   FiMessageCircle, FiX, FiChevronLeft, FiHeart,
-  FiUsers, FiRss, FiCheck, FiCheckCircle
+  FiUsers, FiCheck, FiCheckCircle
 } from 'react-icons/fi';
-import { AiFillStar } from 'react-icons/ai';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../context/AuthContext';
-import { IMAGE_BASE } from '../services/tmdb';
 import toast from 'react-hot-toast';
 
 // ── Helpers ──
@@ -38,81 +36,6 @@ const UserAvatar = ({ profile, size = 'md' }) => {
     </div>
   );
 };
-
-// ── Activity Feed Card ──
-function FeedCard({ item, onWatch }) {
-  const typeIcon = {
-    watching: '🎬',
-    finished: '✅',
-    rated: '⭐',
-    recommended: '👍',
-  }[item.type] || '🎬';
-
-  const typeLabel = {
-    watching: 'is watching',
-    finished: 'just finished',
-    rated: 'rated',
-    recommended: 'recommends',
-  }[item.type] || 'watched';
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="glass rounded-2xl p-4 border border-white/10 hover:border-primary/30 transition-all"
-    >
-      <div className="flex gap-3">
-        <UserAvatar profile={item.profile} />
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-white font-bold text-sm">
-              {item.profile?.display_name || item.profile?.username || 'Movie Fan'}
-            </span>
-            <span className="text-gray-400 text-xs">{typeIcon} {typeLabel}</span>
-            <span className="text-gray-600 text-xs ml-auto">{timeAgo(item.created_at)}</span>
-          </div>
-
-          <div className="flex items-center gap-3 mt-2">
-            {item.movie_poster && (
-              <img
-                src={`${IMAGE_BASE}${item.movie_poster}`}
-                alt={item.movie_title}
-                className="w-10 h-14 object-cover rounded-lg border border-white/10 flex-shrink-0"
-              />
-            )}
-            <div className="flex-1 min-w-0">
-              <p className="text-white font-bold text-sm truncate">{item.movie_title}</p>
-              {item.rating > 0 && (
-                <div className="flex gap-0.5 mt-0.5">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <AiFillStar
-                      key={i}
-                      className={i < item.rating ? 'text-gold text-xs' : 'text-gray-700 text-xs'}
-                    />
-                  ))}
-                </div>
-              )}
-              {item.comment && (
-                <p className="text-gray-400 text-xs mt-1 line-clamp-2">"{item.comment}"</p>
-              )}
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 mt-3">
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => onWatch(item.movie_id, item.movie_type)}
-              className="text-xs px-3 py-1 bg-primary text-black font-bold rounded-full"
-            >
-              ▶ Watch Now
-            </motion.button>
-          </div>
-        </div>
-      </div>
-    </motion.div>
-  );
-}
 
 // ── User Card (Discover) ──
 function UserCard({ profile, currentUserId, onMessage }) {
@@ -551,9 +474,7 @@ export default function Social() {
   const navigate = useNavigate();
   const location = useLocation();
   const initialTab = new URLSearchParams(location.search).get('tab');
-  const [tab, setTab] = useState(['feed', 'discover', 'messages'].includes(initialTab) ? initialTab : 'feed');
-  const [feed, setFeed] = useState([]);
-  const [feedLoading, setFeedLoading] = useState(true);
+  const [tab, setTab] = useState(['discover', 'messages'].includes(initialTab) ? initialTab : 'discover');
   const [discoverUsers, setDiscoverUsers] = useState([]);
   const [discoverLoading, setDiscoverLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -570,11 +491,10 @@ export default function Social() {
     }
 
     const requestedTab = new URLSearchParams(location.search).get('tab');
-    if (['feed', 'discover', 'messages'].includes(requestedTab)) {
+    if (['discover', 'messages'].includes(requestedTab)) {
       setTab(requestedTab);
     }
 
-    fetchFeed();
     fetchDiscoverUsers();
 
     const socialChannel = supabase
@@ -582,16 +502,8 @@ export default function Social() {
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
-        table: 'activity_feed',
-      }, () => {
-        fetchFeed();
-      })
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
         table: 'follows',
       }, () => {
-        fetchFeed();
         fetchDiscoverUsers();
       })
       .subscribe();
@@ -600,60 +512,6 @@ export default function Social() {
       supabase.removeChannel(socialChannel);
     };
   }, [user?.id, location.search]);
-
-  const fetchFeed = async () => {
-    if (!user) return;
-    setFeedLoading(true);
-    try {
-      const { data: following, error: followError } = await supabase
-        .from('follows')
-        .select('following_id')
-        .eq('follower_id', user.id);
-
-      if (followError) throw followError;
-
-      // Include the current user's activity as well as followed users.
-      // This makes the profile -> social -> feed connection immediately visible.
-      const followingIds = following?.map((row) => row.following_id) || [];
-      const feedUserIds = [...new Set([user.id, ...followingIds])];
-
-      const { data: acts, error: activityError } = await supabase
-        .from('activity_feed')
-        .select('*')
-        .in('user_id', feedUserIds)
-        .order('created_at', { ascending: false })
-        .limit(40);
-
-      if (activityError) throw activityError;
-
-      const uniqueIds = [...new Set((acts || []).map((a) => a.user_id))];
-      let profiles = [];
-
-      if (uniqueIds.length) {
-        const { data, error: profileError } = await supabase
-          .from('user_profiles')
-          .select('*')
-          .in('id', uniqueIds);
-
-        if (profileError) throw profileError;
-        profiles = data || [];
-      }
-
-      setFeed((acts || []).map((a) => ({
-        ...a,
-        profile: profiles.find((p) => p.id === a.user_id) || {
-          id: a.user_id,
-          display_name: a.user_id === user.id ? 'You' : 'Movie Fan',
-        },
-      })));
-    } catch (err) {
-      console.error('Feed error:', err);
-      toast.error(err?.message || 'Could not load your movie feed.');
-      setFeed([]);
-    } finally {
-      setFeedLoading(false);
-    }
-  };
 
   const fetchDiscoverUsers = async () => {
     if (!user) return;
@@ -735,11 +593,6 @@ export default function Social() {
     }
   };
 
-  const handleWatchMovie = (movieId, movieType) => {
-    const type = movieType === 'tv' ? 'tv' : 'movie';
-    navigate(`/${type}/${movieId}`);
-  };
-
   const displayUsers = searchQuery.trim() ? searchResults : discoverUsers;
 
   const setSocialTab = (nextTab) => {
@@ -749,7 +602,6 @@ export default function Social() {
 
 
   const tabs = [
-    { id: 'feed', label: 'Feed', icon: <FiRss /> },
     { id: 'discover', label: 'Discover', icon: <FiUsers /> },
     { id: 'messages', label: 'Messages', icon: <FiMessageCircle /> },
   ];
@@ -771,7 +623,7 @@ export default function Social() {
             <span className="gradient-text">COMMUNITY</span>
           </h1>
           <p className="text-gray-400 text-sm">
-            Follow movie fans · Chat · See what others are watching
+            Follow movie fans · Chat
           </p>
         </motion.div>
 
@@ -791,59 +643,6 @@ export default function Social() {
             </button>
           ))}
         </div>
-
-        {/* ── FEED TAB ── */}
-        <AnimatePresence mode="wait">
-          {tab === 'feed' && (
-            <motion.div
-              key="feed"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-            >
-              {feedLoading ? (
-                <div className="space-y-4">
-                  {Array.from({ length: 4 }).map((_, i) => (
-                    <div key={i} className="glass rounded-2xl p-4 border border-white/10 space-y-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full shimmer" />
-                        <div className="space-y-1 flex-1">
-                          <div className="h-3 shimmer rounded w-1/3" />
-                          <div className="h-2 shimmer rounded w-1/2" />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : feed.length === 0 ? (
-                <div className="text-center py-20 glass rounded-2xl border border-white/10">
-                  <p className="text-5xl mb-4">🎬</p>
-                  <p className="text-white font-bold text-lg mb-2">Your Feed is Empty</p>
-                  <p className="text-gray-400 text-sm mb-6">
-                    Follow movie fans to see what they're watching!
-                  </p>
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => setSocialTab('discover')}
-                    className="px-8 py-3 bg-primary text-black font-bold rounded-full text-sm"
-                  >
-                    Discover People →
-                  </motion.button>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {feed.map((item) => (
-                    <FeedCard
-                      key={item.id}
-                      item={item}
-                      onWatch={handleWatchMovie}
-                    />
-                  ))}
-                </div>
-              )}
-            </motion.div>
-          )}
 
           {/* ── DISCOVER TAB ── */}
           {tab === 'discover' && (
