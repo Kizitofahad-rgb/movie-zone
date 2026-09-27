@@ -7,7 +7,7 @@ import { SubscriptionProvider } from './context/SubscriptionContext';
 import { useNotifications } from './hooks/useNotifications';
 import Navbar from './components/Navbar';
 import InstallPrompt from './components/InstallPrompt';
-import MovieChatbot from './components/MovieChatbot';
+// import MovieChatbot from './components/MovieChatbot'; // Temporarily disabled while AI integration is offline.
 import SocialFAB from './components/SocialFAB';
 import Footer from './components/Footer';
 import LoadingFallback from './components/LoadingFallback';
@@ -56,7 +56,7 @@ function App() {
           />
           <Navbar />
           <InstallPrompt />
-          <MovieChatbot />
+          {/* <MovieChatbot /> */}
           <SocialFAB />
           <Suspense fallback={<LoadingFallback />}>
             <Routes>
