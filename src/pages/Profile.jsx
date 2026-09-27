@@ -408,7 +408,7 @@ function SocialTabContent({ user, getDisplayName }) {
           </h3>
           <button
             type="button"
-            onClick={() => navigate('/social?tab=feed')}
+            onClick={() => navigate('/social?tab=discover')}
             className="flex items-center gap-2 px-3 py-2 rounded-full bg-primary/10 border border-primary/30 text-primary text-xs font-bold hover:bg-primary/20 transition-all"
           >
             <FiUsers /> Open Community
