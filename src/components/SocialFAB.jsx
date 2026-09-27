@@ -76,7 +76,7 @@ export default function SocialFAB() {
         whileTap={{ scale: 0.9 }}
         onClick={() => {
           setUnreadCount(0);
-          navigate('/social?tab=feed');
+          navigate('/social?tab=discover');
         }}
         className="relative w-12 h-12 rounded-full flex items-center justify-center shadow-lg"
         style={{
