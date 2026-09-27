@@ -18,7 +18,6 @@ import { useWatchlist } from '../hooks/useWatchlist';
 import PaywallModal from '../components/PaywallModal';
 import MovieCard from '../components/MovieCard';
 import { supabase } from '../services/supabase';
-import { IMAGE_BASE } from '../services/tmdb';
 import toast from 'react-hot-toast';
 
 // ── Watchlist Content ──
@@ -267,10 +266,8 @@ function SocialTabContent({ user, getDisplayName }) {
   const [stats, setStats] = useState({
     following: 0,
     followers: 0,
-    watchedCount: 0,
+    watchlistCount: 0,
   });
-
-  const [userActivity, setUserActivity] = useState([]);
   const [saving, setSaving] = useState(false);
 
   const fetchProfileAndStats = async () => {
@@ -302,26 +299,16 @@ function SocialTabContent({ user, getDisplayName }) {
         .select('*', { count: 'exact', head: true })
         .eq('following_id', user.id);
 
-      const { count: watched } = await supabase
-        .from('activity_feed')
+      const { count: watchlistCount } = await supabase
+        .from('watchlist')
         .select('*', { count: 'exact', head: true })
         .eq('user_id', user.id);
 
       setStats({
         following: followingCount || 0,
         followers: followersCount || 0,
-        watchedCount: watched || 0,
+        watchlistCount: watchlistCount || 0,
       });
-
-      // 3. Fetch user's own activity feed
-      const { data: act } = await supabase
-        .from('activity_feed')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(10);
-
-      setUserActivity(act || []);
     } catch (err) {
       console.error('Error fetching social profile:', err);
     }
@@ -388,9 +375,9 @@ function SocialTabContent({ user, getDisplayName }) {
         </div>
         <div className="glass rounded-2xl p-4 border border-white/10">
           <div className="text-2xl font-black text-white">
-            {stats.watchedCount}
+            {stats.watchlistCount}
           </div>
-          <div className="text-gray-400 text-xs mt-0.5">Movies Watched</div>
+          <div className="text-gray-400 text-xs mt-0.5">Watchlist</div>
         </div>
       </div>
 
@@ -479,44 +466,6 @@ function SocialTabContent({ user, getDisplayName }) {
         </button>
       </form>
 
-      {/* User's Recent Activity Feed */}
-      <div className="space-y-4">
-        <h3
-          className="text-white text-xl font-bold"
-          style={{ fontFamily: 'Bebas Neue, sans-serif' }}
-        >
-          MY RECENT ACTIVITY
-        </h3>
-
-        {userActivity.length === 0 ? (
-          <div className="text-center py-8 glass rounded-2xl border border-white/10 text-gray-500 text-xs">
-            No activity posted yet. Start watching movies to share updates!
-          </div>
-        ) : (
-          userActivity.map((item, i) => (
-            <div
-              key={item.id || i}
-              className="glass rounded-2xl p-4 border border-white/10 flex items-center gap-4"
-            >
-              {item.movie_poster && (
-                <img
-                  src={`${IMAGE_BASE}${item.movie_poster}`}
-                  alt={item.movie_title}
-                  className="w-12 h-16 object-cover rounded-lg"
-                />
-              )}
-              <div className="flex-1 min-w-0">
-                <p className="text-white font-bold text-sm truncate">
-                  {item.movie_title}
-                </p>
-                <p className="text-xs text-primary font-medium capitalize">
-                  {item.type} • {new Date(item.created_at).toLocaleDateString()}
-                </p>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
     </div>
   );
 }
