@@ -36,6 +36,10 @@ const SOURCES = (type, id, season = 1, episode = 1) => {
         name: 'VIDEM',
         url: `https://videm.xyz/embed/tv/${id}/${season}/${episode}`,
       },
+      {
+        name: 'SmashyStream (95ms · High-availability backup)',
+        url: `https://player.smashy.stream/tv/${id}?s=${season}&e=${episode}`,
+      },
      /* {
         name: 'VidNest',
         url: `https://vidnest.fun/embed/tv/${id}/${season}/${episode}`,
@@ -62,6 +66,10 @@ const SOURCES = (type, id, season = 1, episode = 1) => {
     {
       name: 'VIDEM',
       url: `https://videm.xyz/embed/movie/${id}`,
+    },
+    {
+      name: 'SmashyStream (95ms · High-availability backup)',
+      url: `https://player.smashy.stream/movie/${id}`,
     },
    /* {
       name: 'VidNest',
@@ -1169,6 +1177,9 @@ export default function MovieDetail() {
                     src={sources[sourceIndex]?.url}
                     className="w-full h-full"
                     allowFullScreen
+                    // Sandbox the third-party player: scripts/media can run, but
+                    // popups and top-level redirects/navigation are blocked.
+                    sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
                     allow="autoplay; fullscreen; picture-in-picture; encrypted-media; accelerometer; gyroscope"
                     referrerPolicy="no-referrer"
                     title={title}
