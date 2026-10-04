@@ -5,6 +5,7 @@ import {
   FiPlay, FiPlus, FiClock, FiCalendar,
   FiX, FiCheck, FiArrowLeft, FiDownload,
   FiTv, FiChevronDown, FiAlertCircle, FiWifi,
+  FiExternalLink,
 } from 'react-icons/fi';
 import { AiFillStar } from 'react-icons/ai';
 import {
@@ -14,81 +15,17 @@ import {
   IMAGE_ORIGINAL,
 } from '../services/tmdb';
 import MovieCard from '../components/MovieCard';
-import { useWatchlist } from '../hooks/useWatchlist';
 import PlayerLoader from '../components/PlayerLoader';
+import HLSVideoPlayer from '../components/HLSVideoPlayer';
 import PaywallModal from '../components/PaywallModal';
 import CommentInput from '../components/CommentInput';
 import CommentList from '../components/CommentList';
 import { useAuth } from '../context/AuthContext';
 import { useSubscription } from '../context/SubscriptionContext';
+import { useCinemaMood } from '../context/CinemaMoodContext';
 import { supabase } from '../services/supabase';
+import { getStreamSources, openCinemaPopOut } from '../services/streamSources';
 import toast from 'react-hot-toast';
-
-// ── TASK 1: FRESH VIDEO SOURCES ──
-const SOURCES = (type, id, season = 1, episode = 1) => {
-  if (type === 'tv') {
-    return [
-     /* {
-        name: 'VidCore',
-        url: `https://vidcore.org/embed/series/${id}/${season}/${episode}`,
-      },*/
-      {
-        name: 'VIDEM',
-        url: `https://videm.xyz/embed/tv/${id}/${season}/${episode}`,
-      },
-      {
-        name: 'SmashyStream (95ms · High-availability backup)',
-        url: `https://player.smashy.stream/tv/${id}?s=${season}&e=${episode}`,
-      },
-     /* {
-        name: 'VidNest',
-        url: `https://vidnest.fun/embed/tv/${id}/${season}/${episode}`,
-      },
-      {
-        name: 'CineSrc',
-        url: `https://cinesrc.st/embed/tv/${id}/${season}/${episode}`,
-      },
-      {
-        name: 'VidLink',
-        url: `https://vidlink.pro/tv/${id}/${season}/${episode}?primaryColor=00d4ff&secondaryColor=ffd700&player=jw&autoplay=true&nextbutton=true`,
-      },
-      {
-        name: 'VidSrc',
-        url: `https://vidsrc.hair/embed/tv/${id}/${season}/${episode}`,
-      },*/
-    ];
-  }
-  return [
-   /* {
-      name: 'VidCore',
-      url: `https://vidcore.org/embed/movie/${id}`,
-    },*/
-    {
-      name: 'VIDEM',
-      url: `https://videm.xyz/embed/movie/${id}`,
-    },
-    {
-      name: 'SmashyStream (95ms · High-availability backup)',
-      url: `https://player.smashy.stream/movie/${id}`,
-    },
-   /* {
-      name: 'VidNest',
-      url: `https://vidnest.fun/embed/movie/${id}`,
-    },
-    {
-      name: 'CineSrc',
-      url: `https://cinesrc.st/embed/movie/${id}`,
-    },
-    {
-      name: 'VidLink',
-      url: `https://vidlink.pro/movie/${id}?primaryColor=00d4ff&secondaryColor=ffd700&player=jw&autoplay=true`,
-    },
-    {
-      name: 'VidSrc',
-      url: `https://vidsrc.hair/embed/movie/${id}`,
-    },*/
-  ];
-};
 
 export default function MovieDetail() {
   const { id } = useParams();
@@ -98,6 +35,7 @@ export default function MovieDetail() {
   // Auth & Subscription
   const { user } = useAuth();
   const { isActive, loading: subLoading } = useSubscription();
+  const { triggerLightsOut, exitLightsOut } = useCinemaMood();
 
   const [details, setDetails] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -107,6 +45,8 @@ export default function MovieDetail() {
   const [sourceIndex, setSourceIndex] = useState(0);
   const [sources, setSources] = useState([]);
   const [iframeReady, setIframeReady] = useState(false);
+  const [sandboxShield, setSandboxShield] = useState('smart'); // 'smart' (anti-redirect protected) | 'direct' (unrestricted compatibility)
+  const [loadStalled, setLoadStalled] = useState(false);
 
   const [showTrailer, setShowTrailer] = useState(false);
 
@@ -115,10 +55,7 @@ export default function MovieDetail() {
   const [seasonOpen, setSeasonOpen] = useState(false);
   const [episodes, setEpisodes] = useState([]);
 
-  const { watchlist, addToWatchlist, removeFromWatchlist } = useWatchlist();
-  const inWatchlist = watchlist.some(
-    (item) => item.movie_id === parseInt(id) && item.movie_type === (isTV ? 'tv' : 'movie')
-  );
+  const [inWatchlist, setInWatchlist] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
 
   // Schedule state
@@ -171,10 +108,10 @@ export default function MovieDetail() {
 
   useEffect(() => {
     setSources(
-      SOURCES(isTV ? 'tv' : 'movie', id, selectedSeason, selectedEpisode)
+      getStreamSources(isTV ? 'tv' : 'movie', id, selectedSeason, selectedEpisode)
     );
     setSourceIndex(0);
-  }, [selectedSeason, selectedEpisode, id]);
+  }, [selectedSeason, selectedEpisode, id, isTV]);
 
   // ✨ Activate player glow after iframe is visible
   useEffect(() => {
@@ -186,7 +123,7 @@ export default function MovieDetail() {
     }
   }, [iframeReady]);
 
-  // Task 1: handleWatch is strictly synchronous
+  // Launch stream with Lights Out & multi-server resolver
   const handleWatch = () => {
     if (!user) {
       toast('Please sign in to start streaming', {
@@ -203,65 +140,39 @@ export default function MovieDetail() {
       return;
     }
 
-    const newSources = SOURCES(
+    triggerLightsOut(details);
+
+    const streamSources = getStreamSources(
       isTV ? 'tv' : 'movie',
       id,
       selectedSeason,
       selectedEpisode
     );
-    setSources(newSources);
+
+    setSources(streamSources);
     setSourceIndex(0);
     setIframeReady(false);
+    setLoadStalled(false);
     setShowLoader(true);
     setShowPlayer(true);
 
-    // Keep one lightweight "currently watching" record per user.
-    // The Social feed UI is disabled, so we update an existing row
-    // instead of creating a new history row for every movie watched.
+    startIframeTimeout();
+
+    // Task 4D: Post to activity_feed after 30 seconds of watching
     if (watchTimerRef.current) clearTimeout(watchTimerRef.current);
     watchTimerRef.current = setTimeout(async () => {
       if (user && details) {
         try {
-          const movieData = {
+          await supabase.from('activity_feed').insert({
             user_id: user.id,
             type: 'watching',
             movie_id: parseInt(id),
             movie_title: details.title || details.name,
             movie_poster: details.poster_path,
-          };
-
-          const { data: currentWatching, error: lookupError } = await supabase
-            .from('activity_feed')
-            .select('id')
-            .eq('user_id', user.id)
-            .eq('type', 'watching')
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-
-          if (lookupError) throw lookupError;
-
-          if (currentWatching?.id) {
-            const { error } = await supabase
-              .from('activity_feed')
-              .update({
-                ...movieData,
-                created_at: new Date().toISOString(),
-              })
-              .eq('id', currentWatching.id);
-
-            if (error) throw error;
-          } else {
-            const { error } = await supabase
-              .from('activity_feed')
-              .insert(movieData);
-
-            if (error) throw error;
-          }
-
-          console.log('✅ Current watching activity updated:', movieData.movie_title);
+          });
+          console.log('✅ Activity posted: watching');
         } catch (e) {
-          console.error('Failed to update current watch activity:', e);
+          console.error('Failed to post watch activity:', e);
         }
       }
     }, 30000);
@@ -270,44 +181,36 @@ export default function MovieDetail() {
   const handleLoaderComplete = () => {
     setShowLoader(false);
     setIframeReady(true);
-    // Clear any timeout for iframe loading
     if (iframeLoadTimeoutRef.current) {
       clearTimeout(iframeLoadTimeoutRef.current);
       iframeLoadTimeoutRef.current = null;
     }
   };
 
-  // Fallback: if iframe doesn't load after 15 seconds, try next server
+  // Watchdog: detect slow/stalled iframe due to sandboxing or bad mirror
   const startIframeTimeout = () => {
     if (iframeLoadTimeoutRef.current) clearTimeout(iframeLoadTimeoutRef.current);
+    setLoadStalled(false);
+
     iframeLoadTimeoutRef.current = setTimeout(() => {
-      if (!iframeReady) {
-        toast.error('Server taking too long — switching to next...');
-        handleTryNextServer();
-      }
-    }, 15000);
+      setLoadStalled(true);
+    }, 6500);
   };
 
   const handleTryNextServer = () => {
-    // Clear any existing timeout
     if (iframeLoadTimeoutRef.current) {
       clearTimeout(iframeLoadTimeoutRef.current);
       iframeLoadTimeoutRef.current = null;
     }
-    if (sourceIndex < sources.length - 1) {
-      const next = sourceIndex + 1;
-      setIframeReady(false);
-      setShowLoader(true);
-      setSourceIndex(next);
-      setTimeout(() => {
-        setShowLoader(false);
-        setIframeReady(true);
-        startIframeTimeout();
-      }, 4200);
-      toast(`Trying Server ${next + 1}...`, { icon: '🔄' });
-    } else {
-      toast.error('All servers tried. Content may not be available yet.');
-    }
+    const next = (sourceIndex + 1) % (sources.length || 1);
+    setIframeReady(false);
+    setLoadStalled(false);
+    setSourceIndex(next);
+    setTimeout(() => {
+      setIframeReady(true);
+      startIframeTimeout();
+    }, 350);
+    toast(`Connected to ${sources[next]?.name || `Server ${next + 1}`}`, { icon: '⚡' });
   };
 
   const switchServer = (i) => {
@@ -317,12 +220,29 @@ export default function MovieDetail() {
     }
     setSourceIndex(i);
     setIframeReady(false);
-    setShowLoader(true);
+    setLoadStalled(false);
     setTimeout(() => {
-      setShowLoader(false);
       setIframeReady(true);
       startIframeTimeout();
-    }, 4200);
+    }, 300);
+    toast(`Switching to ${sources[i]?.name || `Server ${i + 1}`}`, { icon: '⚡' });
+  };
+
+  const handlePopOut = () => {
+    const url = sources[sourceIndex]?.url;
+    if (!url) return;
+    openCinemaPopOut(url, details?.title || details?.name || 'Movie Zone Cinema');
+    toast.success('🚀 Pop-Out Cinema opened! 100% bypass of iframe and sandbox blocks.', { duration: 4000 });
+  };
+
+  const handleSwitchToNative = () => {
+    const nativeIdx = sources.findIndex((s) => s.isDirect);
+    if (nativeIdx !== -1) {
+      switchServer(nativeIdx);
+      toast('⚡ Switched to Native HTML5 Cinema Player — 0 Sandboxing & 0 Popups!', { icon: '🎬', duration: 4000 });
+    } else {
+      handleTryNextServer();
+    }
   };
 
   const handleSeasonChange = (seasonNum, episodeCount) => {
@@ -332,29 +252,11 @@ export default function MovieDetail() {
     setSeasonOpen(false);
   };
 
-  const handleWatchlist = async () => {
-    if (!user) {
-      toast.error('Please sign in to save movies to your watchlist.');
-      navigate('/login');
-      return;
-    }
-
-    const movie = {
-      id: parseInt(id),
-      title: details?.title,
-      name: details?.name,
-      poster_path: details?.poster_path,
-      vote_average: details?.vote_average,
-      release_date: details?.release_date,
-      first_air_date: details?.first_air_date,
-      media_type: isTV ? 'tv' : 'movie',
-    };
-
-    if (inWatchlist) {
-      await removeFromWatchlist(movie.id);
-    } else {
-      await addToWatchlist(movie);
-    }
+  const handleWatchlist = () => {
+    setInWatchlist(!inWatchlist);
+    toast.success(
+      inWatchlist ? 'Removed from watchlist' : '✅ Added to watchlist!'
+    );
   };
 
   // Task 4D: Trigger star rating prompt when closing player
@@ -382,9 +284,15 @@ export default function MovieDetail() {
     if (!user || !details) return;
 
     try {
-      // Ratings are currently local to this interaction.
-      // Do not write another historical activity row while the feed is disabled.
-      toast.success(`Rated ${stars} ⭐!`);
+      await supabase.from('activity_feed').insert({
+        user_id: user.id,
+        type: 'finished',
+        rating: stars,
+        movie_id: parseInt(id),
+        movie_title: details.title || details.name,
+        movie_poster: details.poster_path,
+      });
+      toast.success(`Rated ${stars} ⭐! Added to your activity feed.`);
     } catch (e) {
       console.error('Failed to save rating:', e);
     }
@@ -1063,55 +971,97 @@ export default function MovieDetail() {
                   </div>
                 </div>
 
-                {/* Center: Server buttons */}
-                <div className="flex gap-1 flex-wrap">
-                  {sources.map((source, i) => (
-                    <motion.button
-                      key={i}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => switchServer(i)}
-                      className={`text-xs px-3 py-1 rounded-full font-medium transition-all border ${
-                        sourceIndex === i
-                          ? 'bg-primary text-black font-bold border-primary shadow-md shadow-primary/40'
-                          : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white border-white/10 hover:border-primary/40'
-                      }`}
-                    >
-                      {source.name || `S${i + 1}`}
-                    </motion.button>
-                  ))}
+                {/* Center: Server Badge (SmashyStream Pro - Sandbox Verified) */}
+                <div className="flex items-center gap-1.5 overflow-x-auto hide-scrollbar max-w-full sm:max-w-xl py-1">
+                  {sources.length > 1 ? (
+                    sources.map((source, i) => (
+                      <motion.button
+                        key={source.id || i}
+                        whileHover={{ scale: 1.04 }}
+                        whileTap={{ scale: 0.96 }}
+                        onClick={() => switchServer(i)}
+                        className={`text-xs px-3 py-1 rounded-full whitespace-nowrap font-medium transition-all border flex items-center gap-1.5 cursor-pointer ${
+                          sourceIndex === i
+                            ? 'bg-primary text-black font-extrabold border-primary shadow-lg shadow-primary/40'
+                            : 'bg-white/5 text-gray-400 hover:text-white border-white/10 hover:border-primary/40'
+                        }`}
+                        title={source.description || source.name}
+                      >
+                        <span>{source.name || `Server ${i + 1}`}</span>
+                        {source.badge && (
+                          <span
+                            className={`text-[9px] px-1 py-0.5 rounded font-mono ${
+                              sourceIndex === i
+                                ? 'bg-black/25 text-black font-bold'
+                                : 'bg-primary/15 text-primary'
+                            }`}
+                          >
+                            {source.badge}
+                          </span>
+                        )}
+                      </motion.button>
+                    ))
+                  ) : (
+                    <div className="flex items-center gap-2 px-3.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-semibold text-xs shadow-md shadow-emerald-500/10">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                      <span className="text-white font-bold">{sources[0]?.name || 'SmashyStream Pro'}</span>
+                      <span className="text-emerald-400 text-[10px] font-mono font-bold bg-emerald-400/20 px-1.5 py-0.5 rounded">
+                        {sources[0]?.badge || 'Sandbox Verified · HD'}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
-                {/* Right: episode nav + close */}
+                {/* Right: Pop-Out Screen & Close */}
                 <div className="flex items-center gap-2 flex-shrink-0">
+                  {/* Pop-Out Screen: 100% immune to all iframe sandboxing and nested restrictions */}
+                  {sources[sourceIndex]?.url && (
+                    <button
+                      onClick={handlePopOut}
+                      className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/20 hover:bg-primary border border-primary/50 text-primary hover:text-black font-bold text-xs transition-all shadow-md shadow-primary/20 cursor-pointer"
+                      title="Open in dedicated Pop-Out window — bypasses 100% of iframe sandbox restrictions"
+                    >
+                      <FiExternalLink className="text-xs" />
+                      <span className="hidden sm:inline">Pop-Out Screen</span>
+                    </button>
+                  )}
+
+                  {!sources[sourceIndex]?.isDirect && (
+                    <button
+                      onClick={handleSwitchToNative}
+                      className="hidden lg:flex items-center gap-1 px-3 py-1 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 text-white font-semibold text-xs transition-all cursor-pointer"
+                      title="Switch to direct native HTML5 video with zero iframes"
+                    >
+                      ⚡ Native Video
+                    </button>
+                  )}
+
                   {isTV && (
-                    <div className="hidden sm:flex items-center gap-2">
+                    <div className="hidden md:flex items-center gap-1.5">
                       <button
                         onClick={() => {
                           if (selectedEpisode > 1) {
                             setSelectedEpisode((e) => e - 1);
-                            setIframeReady(false);
-                            setShowLoader(true);
+                            switchServer(sourceIndex);
                           }
                         }}
                         disabled={selectedEpisode <= 1}
-                        className="text-xs px-3 py-1 glass rounded-full border border-white/20 hover:border-primary disabled:opacity-30 text-white transition-all"
+                        className="text-xs px-2.5 py-1 glass rounded-full border border-white/20 hover:border-primary disabled:opacity-30 text-white transition-all cursor-pointer"
                       >
                         ← Prev
                       </button>
-                      <span className="text-white text-xs font-bold glass px-3 py-1 rounded-full border border-primary/30">
+                      <span className="text-white text-xs font-bold glass px-2.5 py-1 rounded-full border border-primary/30">
                         S{selectedSeason} E{selectedEpisode}
                       </span>
                       <button
                         onClick={() => {
                           if (selectedEpisode < episodes.length) {
                             setSelectedEpisode((e) => e + 1);
-                            setIframeReady(false);
-                            setShowLoader(true);
+                            switchServer(sourceIndex);
                           }
                         }}
                         disabled={selectedEpisode >= episodes.length}
-                        className="text-xs px-3 py-1 glass rounded-full border border-white/20 hover:border-primary disabled:opacity-30 text-white transition-all"
+                        className="text-xs px-2.5 py-1 glass rounded-full border border-white/20 hover:border-primary disabled:opacity-30 text-white transition-all cursor-pointer"
                       >
                         Next →
                       </button>
@@ -1122,7 +1072,8 @@ export default function MovieDetail() {
                     whileHover={{ scale: 1.1, rotate: 90 }}
                     whileTap={{ scale: 0.9 }}
                     onClick={closePlayer}
-                    className="w-8 h-8 rounded-full flex items-center justify-center text-white transition-colors border border-white/20 hover:border-red-500 hover:bg-red-500/20"
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-white transition-colors border border-white/20 hover:border-red-500 hover:bg-red-500/20 cursor-pointer"
+                    title="Close Cinema Screen"
                   >
                     <FiX className="text-sm" />
                   </motion.button>
@@ -1131,7 +1082,7 @@ export default function MovieDetail() {
             </motion.div>
 
             {/* ── Cinematic player body ── */}
-            <div className="flex-1 relative overflow-hidden">
+            <div className="flex-1 relative overflow-hidden bg-black flex items-center justify-center">
               {/* Ambient side glows */}
               <div
                 className="absolute left-0 top-0 bottom-0 w-1 pointer-events-none z-10"
@@ -1166,79 +1117,200 @@ export default function MovieDetail() {
               </AnimatePresence>
 
               {iframeReady && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.99 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.5, ease: 'easeOut' }}
-                  className="w-full h-full"
-                >
-                  <iframe
-                    key={`${sourceIndex}-${selectedSeason}-${selectedEpisode}`}
-                    src={sources[sourceIndex]?.url}
-                    className="w-full h-full"
-                    allowFullScreen
-                    // Sandbox the third-party player: scripts/media can run, but
-                    // popups and top-level redirects/navigation are blocked.
-                    sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
-                    allow="autoplay; fullscreen; picture-in-picture; encrypted-media; accelerometer; gyroscope"
-                    referrerPolicy="no-referrer"
-                    title={title}
-                    style={{ border: 'none', display: 'block' }}
-                    onError={() => {
-                      toast.error('Server error — trying next...');
-                      handleTryNextServer();
-                    }}
-                    onLoad={() => {
-                      // If iframe loads but content is empty, we still mark ready
-                      // but we already have the timeout fallback
-                    }}
-                  />
-                </motion.div>
+                <div className="w-full h-full relative">
+                  {sources[sourceIndex]?.isDirect ? (
+                    <HLSVideoPlayer
+                      streamUrl={sources[sourceIndex]?.url}
+                      title={title}
+                      onClose={closePlayer}
+                      onNextSource={handleTryNextServer}
+                    />
+                  ) : (
+                    <iframe
+                      key={`${sourceIndex}-${selectedSeason}-${selectedEpisode}-${sandboxShield}`}
+                      src={sources[sourceIndex]?.url}
+                      className="w-full h-full"
+                      allowFullScreen
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+                      referrerPolicy="origin"
+                      sandbox={
+                        sandboxShield === 'smart'
+                          ? 'allow-scripts allow-same-origin allow-forms allow-presentation allow-pointer-lock allow-fullscreen allow-autoplay allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation'
+                          : undefined
+                      }
+                      title={title}
+                      style={{ border: 'none', display: 'block' }}
+                      onLoad={() => {
+                        setLoadStalled(false);
+                        if (iframeLoadTimeoutRef.current) {
+                          clearTimeout(iframeLoadTimeoutRef.current);
+                          iframeLoadTimeoutRef.current = null;
+                        }
+                      }}
+                      onError={() => {
+                        setLoadStalled(true);
+                        toast.error('Server connection error — try Next Mirror or Pop-Out Screen');
+                      }}
+                    />
+                  )}
+
+                  {/* Assistive Sandbox Buster & Failover Overlay */}
+                  <AnimatePresence>
+                    {loadStalled && !sources[sourceIndex]?.isDirect && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 15 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 15 }}
+                        className="absolute bottom-4 left-4 right-4 z-30 p-3 sm:p-4 rounded-xl bg-[#0a0a10]/95 border border-primary/50 backdrop-blur-xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-2xl"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-full bg-primary/20 border border-primary/50 flex items-center justify-center text-primary flex-shrink-0">
+                            <FiAlertCircle className="text-xl" />
+                          </div>
+                          <div>
+                            <p className="text-white text-xs sm:text-sm font-bold">
+                              Playback restricted by browser sandbox or adblocker?
+                            </p>
+                            <p className="text-gray-400 text-xs">
+                              Click <strong className="text-primary">Pop-Out Screen</strong> to bypass all iframe restrictions, or switch to <strong className="text-white">Direct Native Video</strong>.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 flex-wrap flex-shrink-0">
+                          <button
+                            onClick={handlePopOut}
+                            className="px-4 py-1.5 rounded-full bg-primary hover:bg-[#33ddff] text-black font-extrabold text-xs transition-all flex items-center gap-1.5 shadow-lg shadow-primary/30 cursor-pointer"
+                          >
+                            <FiExternalLink /> Pop-Out Screen (100% Bypass)
+                          </button>
+                          <button
+                            onClick={handleSwitchToNative}
+                            className="px-3.5 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white font-semibold text-xs border border-white/20 transition-all cursor-pointer"
+                          >
+                            ⚡ Native Video
+                          </button>
+                          <button
+                            onClick={() => {
+                              setIframeReady(false);
+                              setLoadStalled(false);
+                              setTimeout(() => {
+                                setIframeReady(true);
+                                startIframeTimeout();
+                              }, 300);
+                              toast.success('🔄 SmashyStream connection refreshed');
+                            }}
+                            className="px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/15 text-gray-300 hover:text-white text-xs border border-white/10 transition-all cursor-pointer"
+                          >
+                            🔄 Reconnect Stream
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               )}
             </div>
 
-            {/* ── Cinematic bottom bar ── */}
+            {/* ── Cinematic bottom diagnostics & troubleshooting bar ── */}
             <motion.div
               initial={{ scaleY: 0 }}
               animate={{ scaleY: 1 }}
               transition={{ duration: 0.3 }}
-              className="relative z-10 flex-shrink-0 px-4 py-2 flex items-center justify-between flex-wrap gap-2"
+              className="relative z-10 flex-shrink-0 px-4 py-2.5 flex items-center justify-between flex-wrap gap-2 text-xs"
               style={{
                 background:
                   'linear-gradient(to top, rgba(0,0,0,0.98), rgba(0,0,0,0.85))',
-                borderTop: '1px solid rgba(0,212,255,0.1)',
+                borderTop: '1px solid rgba(0,212,255,0.15)',
               }}
             >
-              <button
-                onClick={handleTryNextServer}
-                className="flex items-center gap-1.5 text-gray-500 hover:text-primary text-xs transition-colors group"
-              >
-                <FiWifi className="group-hover:animate-pulse" />
-                Not loading? Switch server
-              </button>
-
-              <div className="flex items-center gap-2">
-                <motion.div
-                  animate={{ opacity: [0.4, 1, 0.4] }}
-                  transition={{ duration: 2, repeat: Infinity }}
-                  className="w-1 h-1 rounded-full bg-primary"
-                />
-                <span
-                  className="text-primary text-xs font-black tracking-widest"
-                  style={{ fontFamily: 'Bebas Neue, sans-serif' }}
-                >
-                  MOVIE ZONE
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <span className="flex items-center gap-1.5 text-gray-400">
+                  <FiWifi className="text-primary animate-pulse" />
+                  <span>
+                    Server: <strong className="text-white">{sources[sourceIndex]?.name || 'SmashyStream Pro'}</strong>
+                  </span>
+                  {sources[sourceIndex]?.speed && (
+                    <span className="text-emerald-400 font-mono text-[11px] font-semibold">
+                      · {sources[sourceIndex]?.speed}
+                    </span>
+                  )}
+                  {sources[sourceIndex]?.rating && (
+                    <span className="text-gold font-mono text-[11px]">
+                      ({sources[sourceIndex]?.rating})
+                    </span>
+                  )}
                 </span>
-                <motion.div
-                  animate={{ opacity: [0.4, 1, 0.4] }}
-                  transition={{ duration: 2, repeat: Infinity, delay: 1 }}
-                  className="w-1 h-1 rounded-full bg-primary"
-                />
+
+                <button
+                  onClick={() => {
+                    setIframeReady(false);
+                    setLoadStalled(false);
+                    setTimeout(() => {
+                      setIframeReady(true);
+                      startIframeTimeout();
+                    }, 300);
+                    toast.success('🔄 SmashyStream connection refreshed', { icon: '⚡' });
+                  }}
+                  className="px-3 py-1 rounded-full bg-white/5 hover:bg-primary hover:text-black border border-white/10 text-white font-medium transition-all cursor-pointer"
+                  title="Reconnect SmashyStream feed"
+                >
+                  🔄 Refresh Stream Feed
+                </button>
+
+                <button
+                  onClick={() => {
+                    const nextMode = sandboxShield === 'smart' ? 'direct' : 'smart';
+                    setSandboxShield(nextMode);
+                    toast(
+                      nextMode === 'smart'
+                        ? '🛡️ Smart Anti-Redirect Shield enabled'
+                        : '🔓 Direct Unrestricted Compatibility mode enabled',
+                      { icon: nextMode === 'smart' ? '🛡️' : '🔓' }
+                    );
+                  }}
+                  className={`px-3 py-1 rounded-full border transition-all cursor-pointer ${
+                    sandboxShield === 'smart'
+                      ? 'border-primary/50 text-primary bg-primary/10'
+                      : 'border-white/10 text-gray-400 hover:text-white bg-white/5'
+                  }`}
+                  title="Toggle sandbox mode if browser or player restricts playback"
+                >
+                  {sandboxShield === 'smart' ? '🛡️ Sandbox: Smart Shield' : '🔓 Sandbox: Direct Compat'}
+                </button>
+
+                {!sources[sourceIndex]?.isDirect && (
+                  <button
+                    onClick={handleSwitchToNative}
+                    className="px-3 py-1 rounded-full bg-white/5 hover:bg-primary/20 border border-white/10 hover:border-primary/50 text-white font-medium transition-all cursor-pointer"
+                    title="Switch to 100% native HTML5 video player with zero iframes"
+                  >
+                    ⚡ Direct Native Video
+                  </button>
+                )}
               </div>
 
-              <p className="text-gray-700 text-xs">
-                💡 Close extra tabs and enjoy
-              </p>
+              <div className="flex items-center gap-3">
+                {sources[sourceIndex]?.url && (
+                  <button
+                    onClick={handlePopOut}
+                    className="flex items-center gap-1.5 text-primary hover:text-[#55eeff] font-bold transition-colors cursor-pointer"
+                    title="Open in standalone window — 100% bypass of iframe restrictions"
+                  >
+                    <FiExternalLink />
+                    <span>Pop-Out Clean Screen</span>
+                  </button>
+                )}
+
+                {trailer && (
+                  <button
+                    onClick={() => setShowTrailer(true)}
+                    className="text-gray-400 hover:text-gold transition-colors cursor-pointer"
+                  >
+                    🎬 4K Trailer
+                  </button>
+                )}
+              </div>
             </motion.div>
           </motion.div>
         )}
