@@ -1,5 +1,6 @@
 // src/services/streamSources.js
 // Multi-server stream resolver + clean pop-out window helper.
+// Used by src/pages/MovieDetail.jsx
 
 /**
  * Returns an ordered list of stream sources for a given TMDB id.
@@ -16,7 +17,7 @@
  *   rating?: string,
  *   description?: string,
  *   url: string,
- *   isDirect?: boolean           // true = raw .m3u8/.mp4, plays in <video>
+ *   isDirect?: boolean           // true = raw .m3u8/.mp4 → plays in HLSVideoPlayer
  * }>}
  */
 export const getStreamSources = (type, id, season = 1, episode = 1) => {
@@ -105,7 +106,7 @@ export const getStreamSources = (type, id, season = 1, episode = 1) => {
 
 /**
  * Opens a clean pop-out window containing ONLY the iframe player.
- * Because it's a top-level document, it is 100% immune to
+ * Because it's a top-level document, it's 100% immune to
  * iframe sandbox / X-Frame-Options restrictions.
  *
  * @param {string} url
@@ -140,5 +141,4 @@ export const openCinemaPopOut = (url, title = 'Movie Zone Cinema') => {
   w.document.close();
 };
 
-// Optional default export for convenience
 export default { getStreamSources, openCinemaPopOut };
