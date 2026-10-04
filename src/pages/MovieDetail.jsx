@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   FiPlay, FiPlus, FiClock, FiCalendar,
-  FiX, FiCheck, FiArrowLeft, FiDownload,
+  FiX, FiCheck, FiArrowLeft,
   FiTv, FiChevronDown, FiAlertCircle, FiWifi,
   FiExternalLink,
 } from 'react-icons/fi';
@@ -16,7 +16,6 @@ import {
 } from '../services/tmdb';
 import MovieCard from '../components/MovieCard';
 import PlayerLoader from '../components/PlayerLoader';
-import HLSVideoPlayer from '../components/HLSVideoPlayer';
 import PaywallModal from '../components/PaywallModal';
 import CommentInput from '../components/CommentInput';
 import CommentList from '../components/CommentList';
@@ -24,18 +23,163 @@ import { useAuth } from '../context/AuthContext';
 import { useSubscription } from '../context/SubscriptionContext';
 import { useCinemaMood } from '../context/CinemaMoodContext';
 import { supabase } from '../services/supabase';
-import { getStreamSources, openCinemaPopOut } from '../services/streamSources';
 import toast from 'react-hot-toast';
+
+/* ═══════════════════════════════════════════════════════════════
+   INLINED HELPERS (prevents Vercel "module not found" build fail)
+   ═══════════════════════════════════════════════════════════════ */
+
+/**
+ * Multi-server resolver — returns ordered list of iframe/direct sources.
+ * `isDirect: true` means it's a raw .m3u8 / .mp4 URL for the native player.
+ */
+const getStreamSources = (type, id, season = 1, episode = 1) => {
+  const movieId = String(id);
+  if (type === 'tv') {
+    return [
+      {
+        id: 'smashy',
+        name: 'SmashyStream Pro',
+        badge: 'HD',
+        speed: 'Fast',
+        rating: '4.8',
+        description: 'Adaptive HLS · Multi-audio',
+        url: `https://embed.smashystream.com/playere.php?tmdb=${movieId}&season=${season}&episode=${episode}`,
+      },
+      {
+        id: 'vidsrc',
+        name: 'VidSrc',
+        badge: 'HD',
+        speed: 'Medium',
+        rating: '4.5',
+        description: 'Backup mirror',
+        url: `https://vidsrc.to/embed/tv/${movieId}/${season}/${episode}`,
+      },
+      {
+        id: '2embed',
+        name: '2Embed',
+        badge: 'SD',
+        speed: 'Fast',
+        rating: '4.2',
+        description: 'Low-bandwidth fallback',
+        url: `https://www.2embed.cc/embedtv/${movieId}&s=${season}&e=${episode}`,
+      },
+      {
+        id: 'multi',
+        name: 'MultiEmbed',
+        badge: 'HD',
+        speed: 'Fast',
+        rating: '4.6',
+        description: 'Multi-lang support',
+        url: `https://multiembed.mov/?video_id=${movieId}&tmdb=1&s=${season}&e=${episode}`,
+      },
+    ];
+  }
+
+  return [
+    {
+      id: 'smashy',
+      name: 'SmashyStream Pro',
+      badge: 'HD',
+      speed: 'Fast',
+      rating: '4.8',
+      description: 'Adaptive HLS · Multi-audio',
+      url: `https://embed.smashystream.com/playere.php?tmdb=${movieId}`,
+    },
+    {
+      id: 'vidsrc',
+      name: 'VidSrc',
+      badge: 'HD',
+      speed: 'Medium',
+      rating: '4.5',
+      description: 'Backup mirror',
+      url: `https://vidsrc.to/embed/movie/${movieId}`,
+    },
+    {
+      id: '2embed',
+      name: '2Embed',
+      badge: 'SD',
+      speed: 'Fast',
+      rating: '4.2',
+      description: 'Low-bandwidth fallback',
+      url: `https://www.2embed.cc/embed/${movieId}`,
+    },
+    {
+      id: 'multi',
+      name: 'MultiEmbed',
+      badge: 'HD',
+      speed: 'Fast',
+      rating: '4.6',
+      description: 'Multi-lang support',
+      url: `https://multiembed.mov/?video_id=${movieId}&tmdb=1`,
+    },
+  ];
+};
+
+/**
+ * Opens a clean pop-out window with just the iframe player.
+ * 100% immune to sandbox restrictions because it's a top-level document.
+ */
+const openCinemaPopOut = (url, title = 'Movie Zone Cinema') => {
+  const w = window.open(
+    '',
+    '_blank',
+    'width=1280,height=720,menubar=no,toolbar=no,location=no,status=no,noopener=no'
+  );
+  if (!w) {
+    alert('Pop-up blocked. Please allow pop-ups for this site.');
+    return;
+  }
+  const safeTitle = String(title).replace(/[<>&"]/g, '');
+  w.document.write(
+    `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${safeTitle}</title>` +
+    `<style>html,body{margin:0;padding:0;height:100%;background:#000;overflow:hidden}` +
+    `iframe{display:block;width:100vw;height:100vh;border:0}</style></head>` +
+    `<body><iframe src="${url}" allowfullscreen ` +
+    `allow="autoplay; encrypted-media; fullscreen; picture-in-picture; clipboard-write"></iframe>` +
+    `</body></html>`
+  );
+  w.document.close();
+};
+
+/**
+ * Lightweight native HTML5 video player used as a zero-iframe fallback.
+ * Works with .mp4 / .m3u8 if the browser supports native HLS (Safari) or
+ * has been fed an MP4 URL. Fails gracefully by advancing to next source.
+ */
+function NativeVideoPlayer({ streamUrl, title, onClose, onNextSource }) {
+  return (
+    <div className="w-full h-full bg-black flex items-center justify-center">
+      <video
+        key={streamUrl}
+        src={streamUrl}
+        controls
+        autoPlay
+        playsInline
+        className="w-full h-full max-h-full"
+        onError={() => {
+          toast.error('Native player failed — switching to next server');
+          onNextSource?.();
+        }}
+      >
+        <track kind="captions" />
+      </video>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   COMPONENT
+   ═══════════════════════════════════════════════════════════════ */
 
 export default function MovieDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const isTV = window.location.pathname.startsWith('/tv');
 
-  // Auth & Subscription
   const { user } = useAuth();
   const { isActive, loading: subLoading } = useSubscription();
-  const { triggerLightsOut, exitLightsOut } = useCinemaMood();
+  const { triggerLightsOut } = useCinemaMood();
 
   const [details, setDetails] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -45,7 +189,7 @@ export default function MovieDetail() {
   const [sourceIndex, setSourceIndex] = useState(0);
   const [sources, setSources] = useState([]);
   const [iframeReady, setIframeReady] = useState(false);
-  const [sandboxShield, setSandboxShield] = useState('smart'); // 'smart' (anti-redirect protected) | 'direct' (unrestricted compatibility)
+  const [sandboxShield, setSandboxShield] = useState('smart');
   const [loadStalled, setLoadStalled] = useState(false);
 
   const [showTrailer, setShowTrailer] = useState(false);
@@ -58,22 +202,17 @@ export default function MovieDetail() {
   const [inWatchlist, setInWatchlist] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
 
-  // Schedule state
   const [showSchedule, setShowSchedule] = useState(false);
   const [scheduleDateTime, setScheduleDateTime] = useState('');
 
-  // Paywall state
   const [showPaywall, setShowPaywall] = useState(false);
   const [paywallReason, setPaywallReason] = useState('upgrade');
 
-  // Comments refresh
   const [commentRefreshKey, setCommentRefreshKey] = useState(0);
 
-  // Task 4D: Rating Prompt State
   const [showRatingPrompt, setShowRatingPrompt] = useState(false);
   const [hoverStar, setHoverStar] = useState(0);
 
-  // ✨ Cinematic: ambient pulse for player glow
   const [playerGlowActive, setPlayerGlowActive] = useState(false);
 
   const watchTimerRef = useRef(null);
@@ -113,7 +252,6 @@ export default function MovieDetail() {
     setSourceIndex(0);
   }, [selectedSeason, selectedEpisode, id, isTV]);
 
-  // ✨ Activate player glow after iframe is visible
   useEffect(() => {
     if (iframeReady) {
       const t = setTimeout(() => setPlayerGlowActive(true), 300);
@@ -123,13 +261,17 @@ export default function MovieDetail() {
     }
   }, [iframeReady]);
 
-  // Launch stream with Lights Out & multi-server resolver
+  const startIframeTimeout = () => {
+    if (iframeLoadTimeoutRef.current) clearTimeout(iframeLoadTimeoutRef.current);
+    setLoadStalled(false);
+    iframeLoadTimeoutRef.current = setTimeout(() => {
+      setLoadStalled(true);
+    }, 6500);
+  };
+
   const handleWatch = () => {
     if (!user) {
-      toast('Please sign in to start streaming', {
-        icon: '🎬',
-        duration: 4000,
-      });
+      toast('Please sign in to start streaming', { icon: '🎬', duration: 4000 });
       navigate('/login');
       return;
     }
@@ -158,7 +300,6 @@ export default function MovieDetail() {
 
     startIframeTimeout();
 
-    // Task 4D: Post to activity_feed after 30 seconds of watching
     if (watchTimerRef.current) clearTimeout(watchTimerRef.current);
     watchTimerRef.current = setTimeout(async () => {
       if (user && details) {
@@ -185,16 +326,6 @@ export default function MovieDetail() {
       clearTimeout(iframeLoadTimeoutRef.current);
       iframeLoadTimeoutRef.current = null;
     }
-  };
-
-  // Watchdog: detect slow/stalled iframe due to sandboxing or bad mirror
-  const startIframeTimeout = () => {
-    if (iframeLoadTimeoutRef.current) clearTimeout(iframeLoadTimeoutRef.current);
-    setLoadStalled(false);
-
-    iframeLoadTimeoutRef.current = setTimeout(() => {
-      setLoadStalled(true);
-    }, 6500);
   };
 
   const handleTryNextServer = () => {
@@ -254,12 +385,9 @@ export default function MovieDetail() {
 
   const handleWatchlist = () => {
     setInWatchlist(!inWatchlist);
-    toast.success(
-      inWatchlist ? 'Removed from watchlist' : '✅ Added to watchlist!'
-    );
+    toast.success(inWatchlist ? 'Removed from watchlist' : '✅ Added to watchlist!');
   };
 
-  // Task 4D: Trigger star rating prompt when closing player
   const closePlayer = () => {
     setShowPlayer(false);
     setShowLoader(false);
@@ -273,9 +401,7 @@ export default function MovieDetail() {
 
     if (user && details) {
       setShowRatingPrompt(true);
-      setTimeout(() => {
-        setShowRatingPrompt(false);
-      }, 5000);
+      setTimeout(() => setShowRatingPrompt(false), 5000);
     }
   };
 
@@ -460,18 +586,13 @@ export default function MovieDetail() {
 
             <div className="flex flex-wrap items-center gap-3">
               <motion.button
-                whileHover={{
-                  scale: 1.05,
-                  boxShadow: '0 0 40px rgba(0,212,255,0.7)',
-                }}
+                whileHover={{ scale: 1.05, boxShadow: '0 0 40px rgba(0,212,255,0.7)' }}
                 whileTap={{ scale: 0.95 }}
                 onClick={handleWatch}
                 className="flex items-center gap-3 bg-primary text-black font-black px-8 py-3.5 rounded-xl text-sm tracking-widest uppercase shadow-lg shadow-primary/40"
               >
                 <FiPlay fill="black" className="text-lg" />
-                {isTV
-                  ? `WATCH S${selectedSeason} E${selectedEpisode}`
-                  : 'WATCH NOW'}
+                {isTV ? `WATCH S${selectedSeason} E${selectedEpisode}` : 'WATCH NOW'}
               </motion.button>
 
               {trailer && (
@@ -514,7 +635,6 @@ export default function MovieDetail() {
 
       {/* ── MAIN CONTENT ── */}
       <div className="max-w-7xl mx-auto px-4 sm:px-8 py-10">
-        {/* Schedule Modal */}
         <AnimatePresence>
           {showSchedule && (
             <motion.div
@@ -566,7 +686,6 @@ export default function MovieDetail() {
         </AnimatePresence>
 
         <div className="flex flex-col lg:flex-row gap-10">
-          {/* Poster */}
           <motion.div
             initial={{ opacity: 0, x: -30 }}
             animate={{ opacity: 1, x: 0 }}
@@ -583,18 +702,9 @@ export default function MovieDetail() {
             <div className="glass rounded-2xl p-4 space-y-3 border border-white/10">
               {[
                 { label: 'Status', value: details.status },
-                {
-                  label: 'Rating',
-                  value: `${details.vote_average?.toFixed(1)} / 10`,
-                },
-                {
-                  label: 'Votes',
-                  value: details.vote_count?.toLocaleString(),
-                },
-                {
-                  label: 'Language',
-                  value: details.original_language?.toUpperCase(),
-                },
+                { label: 'Rating', value: `${details.vote_average?.toFixed(1)} / 10` },
+                { label: 'Votes', value: details.vote_count?.toLocaleString() },
+                { label: 'Language', value: details.original_language?.toUpperCase() },
               ].map((item) => (
                 <div key={item.label} className="flex justify-between text-sm">
                   <span className="text-gray-500">{item.label}</span>
@@ -604,13 +714,11 @@ export default function MovieDetail() {
             </div>
           </motion.div>
 
-          {/* Right Content */}
           <motion.div
             initial={{ opacity: 0, x: 30 }}
             animate={{ opacity: 1, x: 0 }}
             className="flex-1"
           >
-            {/* Season + Episode Picker */}
             {isTV && seasons.length > 0 && (
               <div className="mb-8 glass rounded-2xl p-5 border border-primary/20">
                 <h3 className="text-white font-bold text-lg mb-4 flex items-center gap-2">
@@ -699,7 +807,6 @@ export default function MovieDetail() {
               </div>
             )}
 
-            {/* Tabs */}
             <div className="flex gap-1 mb-8 bg-white/5 rounded-full p-1 w-fit">
               {['overview', 'cast', 'reviews'].map((tab) => (
                 <button
@@ -820,7 +927,6 @@ export default function MovieDetail() {
           </motion.div>
         </div>
 
-        {/* Similar */}
         {similar.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 40 }}
@@ -832,10 +938,7 @@ export default function MovieDetail() {
               <span className="text-2xl">🎯</span>
               <h2
                 className="text-2xl font-black text-white"
-                style={{
-                  fontFamily: 'Bebas Neue, sans-serif',
-                  letterSpacing: '1px',
-                }}
+                style={{ fontFamily: 'Bebas Neue, sans-serif', letterSpacing: '1px' }}
               >
                 More Like This
               </h2>
@@ -849,7 +952,6 @@ export default function MovieDetail() {
           </motion.div>
         )}
 
-        {/* ─── COMMENTS SECTION ─── */}
         <motion.div
           initial={{ opacity: 0, y: 40 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -876,9 +978,7 @@ export default function MovieDetail() {
         </motion.div>
       </div>
 
-      {/* ════════════════════════════════════════ */}
-      {/* ✨ CINEMATIC FULLSCREEN PLAYER ✨         */}
-      {/* ════════════════════════════════════════ */}
+      {/* ═══════════ FULLSCREEN PLAYER ═══════════ */}
       <AnimatePresence>
         {showPlayer && (
           <motion.div
@@ -889,7 +989,6 @@ export default function MovieDetail() {
             className="fixed inset-0 z-[100] flex flex-col"
             style={{ background: '#000' }}
           >
-            {/* ── Cinematic backdrop blur behind player ── */}
             {backdropUrl && (
               <div
                 className="absolute inset-0 opacity-10 pointer-events-none"
@@ -902,14 +1001,10 @@ export default function MovieDetail() {
               />
             )}
 
-            {/* ── Ambient glow orbs ── */}
             <motion.div
               animate={
                 playerGlowActive
-                  ? {
-                      opacity: [0.15, 0.25, 0.15],
-                      scale: [1, 1.05, 1],
-                    }
+                  ? { opacity: [0.15, 0.25, 0.15], scale: [1, 1.05, 1] }
                   : { opacity: 0 }
               }
               transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
@@ -920,7 +1015,6 @@ export default function MovieDetail() {
               }}
             />
 
-            {/* ── Cinematic top letterbox bar ── */}
             <motion.div
               initial={{ scaleY: 0 }}
               animate={{ scaleY: 1 }}
@@ -932,17 +1026,11 @@ export default function MovieDetail() {
                 borderBottom: '1px solid rgba(0,212,255,0.15)',
               }}
             >
-              {/* Top header */}
               <div className="flex items-center justify-between px-4 py-2.5 gap-3 flex-wrap">
-                {/* Left: movie info */}
                 <div className="flex items-center gap-3 min-w-0">
                   {posterUrl && (
                     <div className="w-8 h-11 rounded-md overflow-hidden flex-shrink-0 border border-primary/30 shadow-lg shadow-primary/20">
-                      <img
-                        src={posterUrl}
-                        alt={title}
-                        className="w-full h-full object-cover"
-                      />
+                      <img src={posterUrl} alt={title} className="w-full h-full object-cover" />
                     </div>
                   )}
 
@@ -959,10 +1047,7 @@ export default function MovieDetail() {
                     </div>
                     <span
                       className="text-white font-bold text-sm leading-tight truncate max-w-[200px] sm:max-w-xs"
-                      style={{
-                        fontFamily: 'Bebas Neue, sans-serif',
-                        letterSpacing: '1px',
-                      }}
+                      style={{ fontFamily: 'Bebas Neue, sans-serif', letterSpacing: '1px' }}
                     >
                       {isTV
                         ? `${title} — S${selectedSeason} E${selectedEpisode}`
@@ -971,7 +1056,6 @@ export default function MovieDetail() {
                   </div>
                 </div>
 
-                {/* Center: Server Badge (SmashyStream Pro - Sandbox Verified) */}
                 <div className="flex items-center gap-1.5 overflow-x-auto hide-scrollbar max-w-full sm:max-w-xl py-1">
                   {sources.length > 1 ? (
                     sources.map((source, i) => (
@@ -1012,9 +1096,7 @@ export default function MovieDetail() {
                   )}
                 </div>
 
-                {/* Right: Pop-Out Screen & Close */}
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  {/* Pop-Out Screen: 100% immune to all iframe sandboxing and nested restrictions */}
                   {sources[sourceIndex]?.url && (
                     <button
                       onClick={handlePopOut}
@@ -1081,9 +1163,7 @@ export default function MovieDetail() {
               </div>
             </motion.div>
 
-            {/* ── Cinematic player body ── */}
             <div className="flex-1 relative overflow-hidden bg-black flex items-center justify-center">
-              {/* Ambient side glows */}
               <div
                 className="absolute left-0 top-0 bottom-0 w-1 pointer-events-none z-10"
                 style={{
@@ -1119,7 +1199,7 @@ export default function MovieDetail() {
               {iframeReady && (
                 <div className="w-full h-full relative">
                   {sources[sourceIndex]?.isDirect ? (
-                    <HLSVideoPlayer
+                    <NativeVideoPlayer
                       streamUrl={sources[sourceIndex]?.url}
                       title={title}
                       onClose={closePlayer}
@@ -1135,7 +1215,7 @@ export default function MovieDetail() {
                       referrerPolicy="origin"
                       sandbox={
                         sandboxShield === 'smart'
-                          ? 'allow-scripts allow-same-origin allow-forms allow-presentation allow-pointer-lock allow-fullscreen allow-autoplay allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation'
+                          ? 'allow-scripts allow-same-origin allow-forms allow-presentation allow-pointer-lock allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation'
                           : undefined
                       }
                       title={title}
@@ -1154,7 +1234,6 @@ export default function MovieDetail() {
                     />
                   )}
 
-                  {/* Assistive Sandbox Buster & Failover Overlay */}
                   <AnimatePresence>
                     {loadStalled && !sources[sourceIndex]?.isDirect && (
                       <motion.div
@@ -1212,7 +1291,6 @@ export default function MovieDetail() {
               )}
             </div>
 
-            {/* ── Cinematic bottom diagnostics & troubleshooting bar ── */}
             <motion.div
               initial={{ scaleY: 0 }}
               animate={{ scaleY: 1 }}
@@ -1351,7 +1429,7 @@ export default function MovieDetail() {
         )}
       </AnimatePresence>
 
-      {/* ─── Task 4D: Rating Prompt Overlay ─── */}
+      {/* ─── Rating Prompt ─── */}
       <AnimatePresence>
         {showRatingPrompt && (
           <motion.div
@@ -1373,9 +1451,7 @@ export default function MovieDetail() {
                   className="transition-transform hover:scale-125"
                 >
                   <AiFillStar
-                    className={
-                      star <= hoverStar ? 'text-gold' : 'text-gray-600'
-                    }
+                    className={star <= hoverStar ? 'text-gold' : 'text-gray-600'}
                   />
                 </button>
               ))}
@@ -1384,7 +1460,6 @@ export default function MovieDetail() {
         )}
       </AnimatePresence>
 
-      {/* ── Paywall Modal ── */}
       <PaywallModal
         isOpen={showPaywall}
         onClose={() => setShowPaywall(false)}
