@@ -46,7 +46,7 @@ const getStreamSources = (type, id, season = 1, episode = 1) => {
         description: 'Adaptive HLS · Multi-audio',
         url: `https://embed.smashystream.com/playere.php?tmdb=${movieId}&season=${season}&episode=${episode}`,
       },
-      {
+     /* {
         id: 'vidsrc',
         name: 'VidSrc',
         badge: 'HD',
@@ -112,7 +112,7 @@ const getStreamSources = (type, id, season = 1, episode = 1) => {
       rating: '4.6',
       description: 'Multi-lang support',
       url: `https://multiembed.mov/?video_id=${movieId}&tmdb=1`,
-    },
+    },*/
   ];
 };
 
