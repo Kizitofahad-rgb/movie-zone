@@ -1,12 +1,12 @@
 {
-  "lastChecked": "2026-11-09T14:45:57.698Z",
+  "lastChecked": "2026-11-16T14:22:23.492Z",
   "sources": [
     {
       "name": "Videasy",
       "movieUrl": "https://player.videasy.net/movie/550?color=00d4ff&autoplay=true",
       "tvUrl": "https://player.videasy.net/tv/1399/1/1?color=00d4ff&nextEpisode=true&autoplay=true",
       "status": "dead",
-      "responseTime": 497,
+      "responseTime": 178,
       "movieStatus": null,
       "tvStatus": null,
       "error": "fetch failed"
@@ -15,18 +15,18 @@
       "name": "VidFast",
       "movieUrl": "https://vidfast.pro/movie/550?autoPlay=true&theme=00d4ff",
       "tvUrl": "https://vidfast.pro/tv/1399/1/1?autoPlay=true&theme=00d4ff",
-      "status": "dead",
-      "responseTime": 1222,
-      "movieStatus": 403,
-      "tvStatus": 403,
-      "error": "One or more URLs returned an error response."
+      "status": "working",
+      "responseTime": 956,
+      "movieStatus": 200,
+      "tvStatus": 200,
+      "error": null
     },
     {
       "name": "PStream",
       "movieUrl": "https://iframe.pstream.org/embed/tmdb/movie-550",
       "tvUrl": "https://iframe.pstream.org/embed/tmdb/tv-1399-1-1",
       "status": "dead",
-      "responseTime": 940,
+      "responseTime": 599,
       "movieStatus": null,
       "tvStatus": null,
       "error": "fetch failed"
@@ -36,7 +36,7 @@
       "movieUrl": "https://vidlink.pro/movie/550?primaryColor=00d4ff&secondaryColor=ffd700&player=jw&autoplay=true",
       "tvUrl": "https://vidlink.pro/tv/1399/1/1?primaryColor=00d4ff&secondaryColor=ffd700&player=jw&autoplay=true&nextbutton=true",
       "status": "working",
-      "responseTime": 1089,
+      "responseTime": 275,
       "movieStatus": 200,
       "tvStatus": 200,
       "error": null
@@ -46,7 +46,7 @@
       "movieUrl": "https://player.autoembed.cc/embed/movie/550",
       "tvUrl": "https://player.autoembed.cc/embed/tv/1399/1/1",
       "status": "dead",
-      "responseTime": 567,
+      "responseTime": 560,
       "movieStatus": null,
       "tvStatus": null,
       "error": "fetch failed"
@@ -56,7 +56,7 @@
       "movieUrl": "https://multiembed.mov/?video_id=550&tmdb=1",
       "tvUrl": "https://multiembed.mov/?video_id=1399&tmdb=1&s=1&e=1",
       "status": "dead",
-      "responseTime": 383,
+      "responseTime": 468,
       "movieStatus": 403,
       "tvStatus": 403,
       "error": "One or more URLs returned an error response."
